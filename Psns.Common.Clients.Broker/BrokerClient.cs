@@ -38,7 +38,7 @@ namespace Psns.Common.Clients.Broker
             Func<Either<string, IDbCommand>> commandFactory, 
             Func<CancellationToken, Task<int>> executeQuery)
         {
-            await match(
+            return await match(
                 commandFactory(),
                 async command =>
                 {
@@ -67,14 +67,14 @@ namespace Psns.Common.Clients.Broker
 
                     if(!(parameters[0].Value is DBNull))
                     {
-                        return new BrokerMessage(
+                        return Right<string, BrokerMessage>(new BrokerMessage(
                             (string)parameters[0].Value,
                             (string)parameters[1].Value,
                             (Guid)parameters[2].Value,
-                            (Guid)parameters[3].Value);
+                            (Guid)parameters[3].Value));
                     }
                     else
-                        return BrokerMessage.Empty;
+                        return Right<string, BrokerMessage>(BrokerMessage.Empty);
                 },
                 error => Task.FromResult(Left<string, BrokerMessage>(error)));
         }
