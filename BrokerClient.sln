@@ -1,0 +1,47 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 14
+VisualStudioVersion = 14.0.25420.1
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Psns.Common.Clients.Broker", "Psns.Common.Clients.Broker\Psns.Common.Clients.Broker.csproj", "{94F64F0D-CE7A-4A77-AE0F-939F88A52DB0}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Broker.UnitTests", "Broker.UnitTests\Broker.UnitTests.csproj", "{8EDF4429-251A-416D-BB68-93F227191BCF}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{22B6211C-CCD7-4571-97D5-F0F1CBEA7557}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "test", "test", "{063176DC-79D4-483C-BBD5-6BDC76EC8271}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{B6D64AB0-A70D-4C70-B46A-31348FA728B3}"
+	ProjectSection(SolutionItems) = preProject
+		CodeCoverage.runsettings = CodeCoverage.runsettings
+		LICENSE.md = LICENSE.md
+		Psns.Common.Clients.Broker.nuspec = Psns.Common.Clients.Broker.nuspec
+		README.md = README.md
+	EndProjectSection
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{94F64F0D-CE7A-4A77-AE0F-939F88A52DB0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{94F64F0D-CE7A-4A77-AE0F-939F88A52DB0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{94F64F0D-CE7A-4A77-AE0F-939F88A52DB0}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{94F64F0D-CE7A-4A77-AE0F-939F88A52DB0}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8EDF4429-251A-416D-BB68-93F227191BCF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8EDF4429-251A-416D-BB68-93F227191BCF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8EDF4429-251A-416D-BB68-93F227191BCF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8EDF4429-251A-416D-BB68-93F227191BCF}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{94F64F0D-CE7A-4A77-AE0F-939F88A52DB0} = {22B6211C-CCD7-4571-97D5-F0F1CBEA7557}
+		{8EDF4429-251A-416D-BB68-93F227191BCF} = {063176DC-79D4-483C-BBD5-6BDC76EC8271}
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		EnterpriseLibraryConfigurationToolBinariesPath = packages\Unity.2.1.505.0\lib\NET35;packages\Unity.Interception.2.1.505.0\lib\NET35;packages\EnterpriseLibrary.Common.5.0.505.0\lib\NET35;packages\EnterpriseLibrary.Logging.5.0.505.1\lib\NET35
+	EndGlobalSection
+EndGlobal

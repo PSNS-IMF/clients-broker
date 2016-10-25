@@ -1,0 +1,27 @@
+<?xml version="1.0"?>
+<package >
+  <metadata>
+    <id>Psns.Common.Clients.Broker</id>
+    <title>Psns.Common.Clients.Broker</title>
+    <authors>PSNS</authors>
+    <owners>109.14</owners>
+    <requireLicenseAcceptance>true</requireLicenseAcceptance>
+    <description></description>
+    <projectUrl>https://github.com/PSNS-IMF/[github project name here]</projectUrl>
+    <licenseUrl>https://github.com/PSNS-IMF/[github project name here]/blob/master/LICENSE.md</licenseUrl>
+    <releaseNotes>
+      ## 1.0.0.0
+      ### Features
+      * Initial release
+    </releaseNotes>
+    <version>$version$</version>
+    <tags>PSNS SQL Service Broker</tags>
+    <dependencies>
+      <dependency id="CSharpFunctionalExtensions" version="1.6.2" />
+    </dependencies>
+  </metadata>
+  <files>
+    <file src="..\bin\$configuration$\Psns.Common.Clients.Broker.*" target="lib\net40\" />
+    <file src="..\bin\$configuration$\net45\Psns.Common.Clients.Broker.*" target="lib\net45\" />
+  </files>
+</package>
