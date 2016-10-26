@@ -9,7 +9,7 @@
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>Psns.Common.Clients.Broker</RootNamespace>
     <AssemblyName>Psns.Common.Clients.Broker</AssemblyName>
-    <TargetFrameworkVersion>v4.5.2</TargetFrameworkVersion>
+    <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <TargetFrameworkProfile />
   </PropertyGroup>
@@ -32,10 +32,6 @@
     <DocumentationFile>bin\Release\Psns.Common.Clients.Broker.XML</DocumentationFile>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="CSharpFunctionalExtensions, Version=1.6.2.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\CSharpFunctionalExtensions.1.6.2\lib\net45\CSharpFunctionalExtensions.dll</HintPath>
-      <Private>True</Private>
-    </Reference>
     <Reference Include="LanguageExt.Core, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
       <HintPath>..\packages\LanguageExt.Core.1.9.4\lib\net45\LanguageExt.Core.dll</HintPath>
       <Private>True</Private>
@@ -102,11 +98,8 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="ImpBrokerClient.cs" />
     <Compile Include="BrokerMessage.cs" />
     <Compile Include="BrokerClient.cs" />
-    <Compile Include="FunctionalExtensions.cs" />
-    <Compile Include="IBrokerClient.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
