@@ -84,7 +84,8 @@ namespace Broker.UnitTests
             mockConnection.Setup(c => c.CreateCommand()).Returns(mockCommand.Object);
             var mockTransaction = new Mock<IDbTransaction>();
 
-            var command = CreateCommand(() => mockConnection.Object, Right<string, IDbTransaction>(mockTransaction.Object));
+            var command = CreateCommand(Right<string, IDbConnection>(mockConnection.Object), 
+                Right<string, IDbTransaction>(mockTransaction.Object));
 
             Expect(command, EqualTo(mockCommand.Object));
             mockCommand.VerifySet(c => c.Transaction = mockTransaction.Object, Times.Once());
@@ -98,7 +99,8 @@ namespace Broker.UnitTests
             mockConnection.Setup(c => c.CreateCommand()).Returns(mockCommand.Object);
             var mockTransaction = new Mock<IDbTransaction>();
 
-            var command = CreateCommand(() => mockConnection.Object, Left<string, IDbTransaction>("error"));
+            var command = CreateCommand(Right<string, IDbConnection>(mockConnection.Object), 
+                Left<string, IDbTransaction>("error"));
 
             Expect(match(command, cmd => "cmd", error => error), EqualTo("error"));
             mockCommand.VerifySet(c => c.Transaction = mockTransaction.Object, Times.Never());
@@ -135,10 +137,10 @@ namespace Broker.UnitTests
                 _addedParams.Add(param);
             });
 
-            var unit = await SendAsync(
+            var unit = SendAsync(
                 () => Task.FromResult(1),
-                new BrokerMessage("type", string.Empty, Guid.Empty, Guid.Empty),
-                Right<string, IDbCommand>(_mockCommand.Object));
+                Right<string, IDbCommand>(_mockCommand.Object),
+                new BrokerMessage("type", string.Empty, Guid.Empty, Guid.Empty));
 
             Expect(unit, EqualTo(Unit.Default));
 
@@ -164,10 +166,10 @@ namespace Broker.UnitTests
                 _addedParams.Add(param);
             });
 
-            var result = await SendAsync(
+            var result = SendAsync(
                 () => Task.FromResult(1),
-                new BrokerMessage("type", string.Empty, Guid.Empty, Guid.Empty),
-                Left<string, IDbCommand>("error"));
+                Left<string, IDbCommand>("error"),
+                new BrokerMessage("type", string.Empty, Guid.Empty, Guid.Empty));
 
             Expect(match(from r in result select r, unit => string.Empty, error => error), Does.Contain("error"));
         }
@@ -190,7 +192,7 @@ namespace Broker.UnitTests
         }
 
         [Test]
-        public async Task ReceiveAsync_ShouldExecuteQueryAndReturnNonEmptyMessageWhenMessageHasValue()
+        public void ReceiveAsync_ShouldExecuteQueryAndReturnNonEmptyMessageWhenMessageHasValue()
         {
             _mockParams.Setup(p => p.Add(It.IsAny<object>())).Callback((object obj) =>
             {
@@ -203,11 +205,11 @@ namespace Broker.UnitTests
                 _addedParams.Add(param);
             });
 
-            var message = await ReceiveAsync(
+            var message = ReceiveAsync(
                 token => Task.FromResult(1),
+                Right<string, IDbCommand>(_mockCommand.Object),
                 "queue",
-                new CancellationTokenSource().Token,
-                Right<string, IDbCommand>(_mockCommand.Object));
+                new CancellationTokenSource().Token);
 
             Expect(message, EqualTo(new BrokerMessage("string", "string", Guid.Empty, Guid.Empty)));
 
@@ -225,7 +227,7 @@ namespace Broker.UnitTests
         }
 
         [Test]
-        public async Task ReceiveAsync_ShouldExecuteQueryAndReturnEmptyMessageWhenMessageIsNull()
+        public void ReceiveAsync_ShouldExecuteQueryAndReturnEmptyMessageWhenMessageIsNull()
         {
             _mockParams.Setup(p => p.Add(It.IsAny<object>())).Callback((object obj) =>
             {
@@ -235,11 +237,11 @@ namespace Broker.UnitTests
                 _addedParams.Add(param);
             });
 
-            var message = await ReceiveAsync(
+            var message = ReceiveAsync(
                 token => Task.FromResult(1),
+                Right<string, IDbCommand>(_mockCommand.Object),
                 "queue",
-                new CancellationTokenSource().Token,
-                Right<string, IDbCommand>(_mockCommand.Object));
+                new CancellationTokenSource().Token);
 
             Expect(message, EqualTo(BrokerMessage.Empty));
 
@@ -257,13 +259,13 @@ namespace Broker.UnitTests
         }
 
         [Test]
-        public async Task ReceiveAsync_CommandIsLeft_ReturnsError()
+        public void ReceiveAsync_CommandIsLeft_ReturnsError()
         {
-            var message = await ReceiveAsync(
+            var message = ReceiveAsync(
                 token => Task.FromResult(1),
+                Left<string, IDbCommand>("error"),
                 "queue",
-                new CancellationTokenSource().Token,
-                Left<string, IDbCommand>("error"));
+                new CancellationTokenSource().Token);
 
             Expect(match(message, msg => string.Empty, error => error), Does.Contain("error"));
         }
@@ -299,8 +301,8 @@ namespace Broker.UnitTests
 
             var unit = await EndDialogAsync(
                 () => Task.FromResult(1),
-                Guid.Empty,
-                Right<string, IDbCommand>(_mockCommand.Object));
+                Right<string, IDbCommand>(_mockCommand.Object),
+                Guid.Empty);
 
             Expect(unit, EqualTo(Unit.Default));
 
@@ -323,8 +325,8 @@ namespace Broker.UnitTests
 
             var result = await EndDialogAsync(
                 () => Task.FromResult(1),
-                Guid.Empty,
-                Left<string, IDbCommand>("error"));
+                Left<string, IDbCommand>("error"),
+                Guid.Empty);
 
             Expect(match(result, msg => string.Empty, error => error), Does.Contain("error"));
         }
