@@ -6,7 +6,7 @@
     <authors>PSNS</authors>
     <owners>109.14</owners>
     <requireLicenseAcceptance>true</requireLicenseAcceptance>
-    <description></description>
+    <description>Contains functions for communicating with SQL Service Broker</description>
     <projectUrl>https://github.com/PSNS-IMF/[github project name here]</projectUrl>
     <licenseUrl>https://github.com/PSNS-IMF/[github project name here]/blob/master/LICENSE.md</licenseUrl>
     <releaseNotes>
@@ -17,11 +17,11 @@
     <version>$version$</version>
     <tags>PSNS SQL Service Broker</tags>
     <dependencies>
-      <dependency id="CSharpFunctionalExtensions" version="1.6.2" />
+      <dependency id="Psns.Common.SystemExtensions" version="1.0.0.1" />
+      <dependency id="LanguageExt.Core" version="1.9.4" />
     </dependencies>
   </metadata>
   <files>
-    <file src="..\bin\$configuration$\Psns.Common.Clients.Broker.*" target="lib\net40\" />
-    <file src="..\bin\$configuration$\net45\Psns.Common.Clients.Broker.*" target="lib\net45\" />
+    <file src="Psns.Common.Clients.Broker\bin\$configuration$\Psns.Common.Clients.Broker.*" target="lib\net45\" exclude="**\*.dll.config;**\*Tests*;**\*Test*" />
   </files>
 </package>
