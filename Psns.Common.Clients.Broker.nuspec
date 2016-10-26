@@ -7,8 +7,8 @@
     <owners>109.14</owners>
     <requireLicenseAcceptance>true</requireLicenseAcceptance>
     <description>Contains functions for communicating with SQL Service Broker</description>
-    <projectUrl>https://github.com/PSNS-IMF/[github project name here]</projectUrl>
-    <licenseUrl>https://github.com/PSNS-IMF/[github project name here]/blob/master/LICENSE.md</licenseUrl>
+    <projectUrl>https://github.com/PSNS-IMF/clients-broker</projectUrl>
+    <licenseUrl>https://github.com/PSNS-IMF/clients-broker/blob/master/LICENSE.md</licenseUrl>
     <releaseNotes>
       ## 1.0.0.0
       ### Features
