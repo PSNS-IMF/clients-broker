@@ -137,7 +137,7 @@ namespace Broker.UnitTests
                 _addedParams.Add(param);
             });
 
-            var unit = SendAsync(
+            var unit = await SendAsync(
                 () => Task.FromResult(1),
                 Right<string, IDbCommand>(_mockCommand.Object),
                 new BrokerMessage("type", string.Empty, Guid.Empty, Guid.Empty));
@@ -166,7 +166,7 @@ namespace Broker.UnitTests
                 _addedParams.Add(param);
             });
 
-            var result = SendAsync(
+            var result = await SendAsync(
                 () => Task.FromResult(1),
                 Left<string, IDbCommand>("error"),
                 new BrokerMessage("type", string.Empty, Guid.Empty, Guid.Empty));
@@ -192,7 +192,7 @@ namespace Broker.UnitTests
         }
 
         [Test]
-        public void ReceiveAsync_ShouldExecuteQueryAndReturnNonEmptyMessageWhenMessageHasValue()
+        public async Task ReceiveAsync_ShouldExecuteQueryAndReturnNonEmptyMessageWhenMessageHasValue()
         {
             _mockParams.Setup(p => p.Add(It.IsAny<object>())).Callback((object obj) =>
             {
@@ -205,7 +205,7 @@ namespace Broker.UnitTests
                 _addedParams.Add(param);
             });
 
-            var message = ReceiveAsync(
+            var message = await ReceiveAsync(
                 token => Task.FromResult(1),
                 Right<string, IDbCommand>(_mockCommand.Object),
                 "queue",
@@ -227,7 +227,7 @@ namespace Broker.UnitTests
         }
 
         [Test]
-        public void ReceiveAsync_ShouldExecuteQueryAndReturnEmptyMessageWhenMessageIsNull()
+        public async Task ReceiveAsync_ShouldExecuteQueryAndReturnEmptyMessageWhenMessageIsNull()
         {
             _mockParams.Setup(p => p.Add(It.IsAny<object>())).Callback((object obj) =>
             {
@@ -237,7 +237,7 @@ namespace Broker.UnitTests
                 _addedParams.Add(param);
             });
 
-            var message = ReceiveAsync(
+            var message = await ReceiveAsync(
                 token => Task.FromResult(1),
                 Right<string, IDbCommand>(_mockCommand.Object),
                 "queue",
@@ -259,9 +259,9 @@ namespace Broker.UnitTests
         }
 
         [Test]
-        public void ReceiveAsync_CommandIsLeft_ReturnsError()
+        public async Task ReceiveAsync_CommandIsLeft_ReturnsError()
         {
-            var message = ReceiveAsync(
+            var message = await ReceiveAsync(
                 token => Task.FromResult(1),
                 Left<string, IDbCommand>("error"),
                 "queue",
