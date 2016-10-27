@@ -6,10 +6,10 @@ using LanguageExt;
 
 namespace Psns.Common.Clients.Broker
 {
-    internal delegate Task<Either<string, BrokerMessage>> ReceiveFunc(string queueName, CancellationToken token);
-    internal delegate Task<Either<string, Unit>> SendFunc(BrokerMessage message);
-    internal delegate Task<Either<string, Unit>> EndDialogFunc(Guid conversation);
-    internal delegate Either<string, Unit> CommitFunc();
+    public delegate Task<Either<string, BrokerMessage>> ReceiveFunc(string queueName, CancellationToken token);
+    public delegate Task<Either<string, Unit>> SendFunc(BrokerMessage message);
+    public delegate Task<Either<string, Unit>> EndDialogFunc(Guid conversation);
+    public delegate Either<string, Unit> CommitFunc();
 
     public static class CurriedDelegates
     {
