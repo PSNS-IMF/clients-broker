@@ -25,13 +25,11 @@ namespace Psns.Common.Clients.Broker
             from tran in Safe(conn.BeginTransaction)
             select tran;
 
-        public static Either<string, IDbCommand> CreateCommand(Either<string, IDbConnection> connection,
-            Either<string, IDbTransaction> transaction) =>
-            from conn in connection
+        public static Either<string, IDbCommand> CreateCommand(Either<string, IDbTransaction> transaction) =>
             from tran in transaction
             from command in Safe(() =>
             {
-                var command = conn.CreateCommand();
+                var command = tran.Connection.CreateCommand();
                 command.Transaction = tran;
                 return command;
             })

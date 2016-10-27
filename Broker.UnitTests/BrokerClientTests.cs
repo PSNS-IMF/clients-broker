@@ -83,9 +83,9 @@ namespace Broker.UnitTests
             var mockConnection = new Mock<IDbConnection>();
             mockConnection.Setup(c => c.CreateCommand()).Returns(mockCommand.Object);
             var mockTransaction = new Mock<IDbTransaction>();
+            mockTransaction.Setup(t => t.Connection).Returns(mockConnection.Object);
 
-            var command = CreateCommand(Right<string, IDbConnection>(mockConnection.Object), 
-                Right<string, IDbTransaction>(mockTransaction.Object));
+            var command = CreateCommand(Right<string, IDbTransaction>(mockTransaction.Object));
 
             Expect(command, EqualTo(mockCommand.Object));
             mockCommand.VerifySet(c => c.Transaction = mockTransaction.Object, Times.Once());
@@ -98,9 +98,9 @@ namespace Broker.UnitTests
             var mockConnection = new Mock<IDbConnection>();
             mockConnection.Setup(c => c.CreateCommand()).Returns(mockCommand.Object);
             var mockTransaction = new Mock<IDbTransaction>();
+            mockTransaction.Setup(t => t.Connection).Returns(mockConnection.Object);
 
-            var command = CreateCommand(Right<string, IDbConnection>(mockConnection.Object), 
-                Left<string, IDbTransaction>("error"));
+            var command = CreateCommand(Left<string, IDbTransaction>("error"));
 
             Expect(match(command, cmd => "cmd", error => error), EqualTo("error"));
             mockCommand.VerifySet(c => c.Transaction = mockTransaction.Object, Times.Never());
