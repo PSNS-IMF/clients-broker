@@ -1,1 +1,1 @@
-# Psns.Common.Clients.Broker [![NuGet Badge](https://buildstats.info/nuget/Psns.Common.Clients.Broker)](https://www.nuget.org/packages/NUnitPsns.Common.Clients.Broker/)
+# Psns.Common.Clients.Broker [![NuGet Badge](https://buildstats.info/nuget/Psns.Common.Clients.Broker)](https://www.nuget.org/packages/Psns.Common.Clients.Broker/)

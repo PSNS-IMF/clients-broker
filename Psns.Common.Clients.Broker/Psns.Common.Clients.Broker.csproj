@@ -101,6 +101,7 @@
     <Compile Include="AppPrelude.cs" />
     <Compile Include="BrokerMessage.cs" />
     <Compile Include="BrokerClient.cs" />
+    <Compile Include="CurriedDelegates.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>

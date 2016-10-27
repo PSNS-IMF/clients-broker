@@ -22,7 +22,7 @@ namespace Broker.UnitTests
         {
             var mockConnection = new Mock<IDbConnection>();
 
-            var connection = Open(() => mockConnection.Object);
+            var connection = Open(mockConnection.Object);
 
             Expect(connection, Is.EqualTo(mockConnection.Object));
         }
@@ -33,7 +33,7 @@ namespace Broker.UnitTests
             var mockConnection = new Mock<IDbConnection>();
             mockConnection.Setup(c => c.Open()).Throws(new Exception("error"));
 
-            var connection = Open(() => mockConnection.Object);
+            var connection = Open(mockConnection.Object);
 
             Expect(connection.Match(con => string.Empty, error => error), Does.Contain("error"));
         }
@@ -138,8 +138,8 @@ namespace Broker.UnitTests
             });
 
             var unit = await SendAsync(
-                () => Task.FromResult(1),
                 Right<string, IDbCommand>(_mockCommand.Object),
+                cmd => Task.FromResult(1),
                 new BrokerMessage("type", string.Empty, Guid.Empty, Guid.Empty));
 
             Expect(unit, EqualTo(Unit.Default));
@@ -167,8 +167,8 @@ namespace Broker.UnitTests
             });
 
             var result = await SendAsync(
-                () => Task.FromResult(1),
                 Left<string, IDbCommand>("error"),
+                cmd => Task.FromResult(1),
                 new BrokerMessage("type", string.Empty, Guid.Empty, Guid.Empty));
 
             Expect(match(from r in result select r, unit => string.Empty, error => error), Does.Contain("error"));
@@ -206,8 +206,8 @@ namespace Broker.UnitTests
             });
 
             var message = await ReceiveAsync(
-                token => Task.FromResult(1),
                 Right<string, IDbCommand>(_mockCommand.Object),
+                (cmd, token) => Task.FromResult(1),
                 "queue",
                 new CancellationTokenSource().Token);
 
@@ -238,8 +238,8 @@ namespace Broker.UnitTests
             });
 
             var message = await ReceiveAsync(
-                token => Task.FromResult(1),
                 Right<string, IDbCommand>(_mockCommand.Object),
+                (cmd, token) => Task.FromResult(1),
                 "queue",
                 new CancellationTokenSource().Token);
 
@@ -262,8 +262,8 @@ namespace Broker.UnitTests
         public async Task ReceiveAsync_CommandIsLeft_ReturnsError()
         {
             var message = await ReceiveAsync(
-                token => Task.FromResult(1),
                 Left<string, IDbCommand>("error"),
+                (cmd, token) => Task.FromResult(1),
                 "queue",
                 new CancellationTokenSource().Token);
 
@@ -300,8 +300,8 @@ namespace Broker.UnitTests
             });
 
             var unit = await EndDialogAsync(
-                () => Task.FromResult(1),
                 Right<string, IDbCommand>(_mockCommand.Object),
+                cmd => Task.FromResult(1),
                 Guid.Empty);
 
             Expect(unit, EqualTo(Unit.Default));
@@ -324,8 +324,8 @@ namespace Broker.UnitTests
             });
 
             var result = await EndDialogAsync(
-                () => Task.FromResult(1),
                 Left<string, IDbCommand>("error"),
+                cmd => Task.FromResult(1),
                 Guid.Empty);
 
             Expect(match(result, msg => string.Empty, error => error), Does.Contain("error"));

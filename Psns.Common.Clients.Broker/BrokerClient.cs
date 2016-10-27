@@ -12,12 +12,11 @@ namespace Psns.Common.Clients.Broker
 {
     public static class BrokerClient
     {
-        public static Either<string, IDbConnection> Open(Func<IDbConnection> connectionFactory) =>
+        public static Either<string, IDbConnection> Open(IDbConnection connection) =>
             Safe(() =>
             {
-                var conn = connectionFactory();
-                conn.Open();
-                return conn;
+                connection.Open();
+                return connection;
             });
 
         public static Either<string, IDbTransaction> BeginTransaction(Either<string, IDbConnection> connection) =>
@@ -36,8 +35,8 @@ namespace Psns.Common.Clients.Broker
             select command;
 
         public static async Task<Either<string, Unit>> SendAsync(
-            Func<Task<int>> executeQuery,
             Either<string, IDbCommand> command,
+            Func<IDbCommand, Task<int>> executeQuery,
             BrokerMessage message) =>
             await command.MatchAsync(
                 async cmd =>
@@ -52,15 +51,15 @@ namespace Psns.Common.Clients.Broker
 
                     cmd.CommandText = "SEND ON CONVERSATION @conversation MESSAGE TYPE [" + message.MessageType + "] (@message)";
 
-                    await executeQuery();
+                    await executeQuery(cmd);
 
                     return Right<string, Unit>(Unit.Default);
                 },
                 error => error);
 
         public static async Task<Either<string, BrokerMessage>> ReceiveAsync(
-            Func<CancellationToken, Task<int>> executeQuery,
             Either<string, IDbCommand> command,
+            Func<IDbCommand, CancellationToken, Task<int>> executeQuery,
             string queueName,
             CancellationToken token) =>
             await command.MatchAsync(
@@ -87,7 +86,7 @@ namespace Psns.Common.Clients.Broker
                         "@conversation = conversation_handle " +
                         $"FROM [{queueName}]), TIMEOUT 5000;";
 
-                    await executeQuery(token);
+                    await executeQuery(cmd, token);
 
                     if(!(parameters[0].Value is DBNull))
                     {
@@ -104,8 +103,8 @@ namespace Psns.Common.Clients.Broker
                 error => error);
 
         public static async Task<Either<string, Unit>> EndDialogAsync(
-            Func<Task<int>> executeQuery,
             Either<string, IDbCommand> command,
+            Func<IDbCommand, Task<int>> executeQuery,
             Guid conversation) =>
             await command.MatchAsync(
                 async cmd =>
@@ -119,7 +118,7 @@ namespace Psns.Common.Clients.Broker
 
                     cmd.CommandText = "END CONVERSATION @conversation";
 
-                    await executeQuery();
+                    await executeQuery(cmd);
                     return Right<string, Unit>(Unit.Default);
                 },
                 error => error);
