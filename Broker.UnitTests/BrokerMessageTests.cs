@@ -23,7 +23,7 @@ namespace Broker.UnitTests
         public void Equals_BothEmpty_AreEqual()
         {
             Expect(BrokerMessage.Empty, EqualTo(BrokerMessage.Empty));
-            Expect(BrokerMessage.Empty == new BrokerMessage(null, null, Guid.Empty, Guid.Empty), Is.True);
+            Expect(BrokerMessage.Empty == new BrokerMessage(string.Empty, string.Empty, Guid.Empty, Guid.Empty), Is.True);
         }
 
         [Test]

@@ -9,46 +9,90 @@ using Moq;
 using Psns.Common.Clients.Broker;
 using LanguageExt;
 using static LanguageExt.Prelude;
-using static Psns.Common.Clients.Broker.BrokerClient;
+using static Psns.Common.Clients.Broker.AppPrelude;
 using static LanguageExt.List;
 
 namespace Broker.UnitTests
 {
     [TestFixture]
-    public class OpenTests : AssertionHelper
+    public class OpenConnectionTests : AssertionHelper
     {
+        Mock<IDbConnection> _mockConnection;
+
+        [SetUp]
+        public void Setup() => _mockConnection = new Mock<IDbConnection>();
+
         [Test]
-        public void OpenOk_ReturnsConnection()
+        public void OpenConnection_CallsOpenOnConnection()
         {
-            var mockConnection = new Mock<IDbConnection>();
+            var connection = openConnection(_mockConnection.Object);
 
-            var connection = Open(mockConnection.Object);
-
-            Expect(connection, Is.EqualTo(mockConnection.Object));
+            _mockConnection.Verify(c => c.Open(), Times.Once());
         }
 
         [Test]
         public void OpenThrows_ReturnsError()
         {
-            var mockConnection = new Mock<IDbConnection>();
-            mockConnection.Setup(c => c.Open()).Throws(new Exception("error"));
+            _mockConnection.Setup(c => c.Open()).Throws(new Exception("error"));
 
-            var connection = Open(mockConnection.Object);
+            var connection = openConnection(_mockConnection.Object);
 
             Expect(connection.Match(con => string.Empty, error => error), Does.Contain("error"));
+        }
+
+        [Test]
+        public void Dispose_ShouldDisposeOfConnection()
+        {
+            var mockTransaction = new Mock<IDbTransaction>();
+            mockTransaction.Setup(t => t.Connection).Returns(_mockConnection.Object);
+
+            var mockCommand = new Mock<IDbCommand>();
+            var mockParams = new Mock<IDataParameterCollection>();
+            mockCommand.Setup(c => c.Parameters).Returns(mockParams.Object);
+
+            _mockConnection.Setup(c => c.BeginTransaction()).Returns(mockTransaction.Object);
+            _mockConnection.Setup(c => c.CreateCommand()).Returns(mockCommand.Object);
+
+            var result = match(
+                from conn in openConnection(_mockConnection.Object)
+                from trans in beginTransaction(conn)
+                from cmd in createCommand(trans)
+                from unit in cmd.EndDialogAsync(c => Task.FromResult(1), Guid.Empty).Result
+                from ut in trans.Commit()
+                select safe(() => dispose(conn)),
+                u => u,
+                err => err);
+
+            Expect(result.IsRight, Is.True);
+            _mockConnection.Verify(c => c.Dispose(), Times.Once());
         }
     }
 
     [TestFixture]
-    public class BeginTransationTests : AssertionHelper
+    public class TransactionTests : AssertionHelper
     {
+        Mock<IDbConnection> _mockDbConnection;
+        Mock<IDbTransaction> _mockTransaction;
+        Either<string, OpenConnection> _connection;
+
+        [SetUp]
+        public void Setup()
+        {
+            _mockDbConnection = new Mock<IDbConnection>();
+            _mockTransaction = new Mock<IDbTransaction>();
+            _mockDbConnection.Setup(c => c.BeginTransaction()).Returns(_mockTransaction.Object);
+
+            _connection = openConnection(_mockDbConnection.Object);
+        }
+
         [Test]
         public void ConnectionBeginTransactionOk_ReturnsTransaction()
         {
-            var mockConnection = new Mock<IDbConnection>();
-            mockConnection.Setup(c => c.BeginTransaction()).Returns(new Mock<IDbTransaction>().Object);
-
-            var transaction = BeginTransaction(Right<string, IDbConnection>(mockConnection.Object));
+            var transaction = match(
+                from connection in _connection
+                select AppPrelude.beginTransaction(connection),
+                conn => conn,
+                err => err);
 
             Expect(transaction.IsRight, Is.True);
         }
@@ -56,76 +100,64 @@ namespace Broker.UnitTests
         [Test]
         public void ConnectionBeginTransactionThrows_ReturnsError()
         {
-            var mockConnection = new Mock<IDbConnection>();
-            mockConnection.Setup(c => c.BeginTransaction()).Throws(new Exception("error"));
+            _mockDbConnection.Setup(c => c.BeginTransaction()).Throws(new Exception("error"));
 
-            var transaction = BeginTransaction(Right<string, IDbConnection>(mockConnection.Object));
+            var transaction = match(
+                from connection in _connection
+                select AppPrelude.beginTransaction(connection),
+                Right: c => c,
+                Left: err => err);
 
-            Expect(transaction.Match(trans => string.Empty, error => error), Does.Contain("error"));
+            Expect(match(transaction, trans => "", error => error), Does.Contain("error"));
         }
 
         [Test]
-        public void ConnectionIsLeft_ReturnsError()
+        public void TransactionCommitOk_ReturnsUnit()
         {
-            var transaction = BeginTransaction(Left<string, IDbConnection>("error"));
+            var unit = match(
+                from connection in _connection
+                from trans in beginTransaction(connection)
+                select trans.Commit(),
+                t => t,
+                err => err);
 
-            Expect(transaction.Match(trans => string.Empty, error => error), Does.Contain("error"));
+            Expect(unit.IsRight, Is.True);
+        }
+
+        [Test]
+        public void TransactionCommitThrows_ReturnsError()
+        {
+            _mockTransaction.Setup(t => t.Commit()).Throws(new Exception("error"));
+
+            var unit = match(
+                from connection in _connection
+                from trans in beginTransaction(connection)
+                select trans.Commit(),
+                Right: u => u,
+                Left: err => err);
+
+            Expect(match(unit, u => string.Empty, e => e), Does.Contain("error"));
         }
     }
 
-    [TestFixture]
-    public class CreateCommandTests : AssertionHelper
+    public class CommandTests : AssertionHelper
     {
-        [Test]
-        public void ConnectionBeginTransactionFactoryIsRight_ReturnsCommand()
-        {
-            var mockCommand = new Mock<IDbCommand>();
-            var mockConnection = new Mock<IDbConnection>();
-            mockConnection.Setup(c => c.CreateCommand()).Returns(mockCommand.Object);
-            var mockTransaction = new Mock<IDbTransaction>();
-            mockTransaction.Setup(t => t.Connection).Returns(mockConnection.Object);
-
-            var command = CreateCommand(Right<string, IDbTransaction>(mockTransaction.Object));
-
-            Expect(command, EqualTo(mockCommand.Object));
-            mockCommand.VerifySet(c => c.Transaction = mockTransaction.Object, Times.Once());
-        }
-
-        [Test]
-        public void ConnectionBeginTransactionFactoryIsLeft_ReturnsError()
-        {
-            var mockCommand = new Mock<IDbCommand>();
-            var mockConnection = new Mock<IDbConnection>();
-            mockConnection.Setup(c => c.CreateCommand()).Returns(mockCommand.Object);
-            var mockTransaction = new Mock<IDbTransaction>();
-            mockTransaction.Setup(t => t.Connection).Returns(mockConnection.Object);
-
-            var command = CreateCommand(Left<string, IDbTransaction>("error"));
-
-            Expect(match(command, cmd => "cmd", error => error), EqualTo("error"));
-            mockCommand.VerifySet(c => c.Transaction = mockTransaction.Object, Times.Never());
-        }
-    }
-
-    [TestFixture]
-    public class SendAsyncTests : AssertionHelper
-    {
-        Mock<IDbCommand> _mockCommand;
-        Mock<IDataParameterCollection> _mockParams;
-        List<SqlParameter> _addedParams;
+        protected Mock<IDbConnection> _mockDbConnection;
+        protected Mock<IDbTransaction> _mockTransaction;
+        protected Mock<IDbCommand> _mockCommand;
+        protected Mock<IDataParameterCollection> _mockParams;
+        protected List<SqlParameter> _addedParams;
+        protected Either<string, Command> _command;
 
         [SetUp]
         public void Setup()
         {
+            _mockDbConnection = new Mock<IDbConnection>();
+            _mockTransaction = new Mock<IDbTransaction>();
+            _mockCommand = new Mock<IDbCommand>();
             _addedParams = new List<SqlParameter>();
             _mockParams = new Mock<IDataParameterCollection>();
-            _mockCommand = new Mock<IDbCommand>();
-            _mockCommand.Setup(c => c.Parameters).Returns(_mockParams.Object);
-        }
 
-        [Test]
-        public async Task SendAsync_CommandIsRight_ReturnsError()
-        {
             _mockParams.Setup(p => p.Add(It.IsAny<object>())).Callback((object obj) =>
             {
                 var param = obj as SqlParameter;
@@ -136,13 +168,50 @@ namespace Broker.UnitTests
 
                 _addedParams.Add(param);
             });
+            _mockDbConnection.Setup(c => c.BeginTransaction()).Returns(_mockTransaction.Object);
+            _mockDbConnection.Setup(c => c.CreateCommand()).Returns(_mockCommand.Object);
+            _mockTransaction.Setup(t => t.Connection).Returns(_mockDbConnection.Object);
+            _mockCommand.Setup(c => c.Parameters).Returns(_mockParams.Object);
 
-            var unit = await SendAsync(
-                Right<string, IDbCommand>(_mockCommand.Object),
-                cmd => Task.FromResult(1),
-                new BrokerMessage("type", string.Empty, Guid.Empty, Guid.Empty));
+            _command = match(
+                from conn in openConnection(_mockDbConnection.Object)
+                from trans in beginTransaction(conn)
+                select createCommand(trans),
+                c => c,
+                err => err);
+        }
+    }
 
-            Expect(unit, EqualTo(Unit.Default));
+    [TestFixture]
+    public class DisposeCalled : CommandTests
+    {
+        [TearDown]
+        public void TearDown() => _mockCommand.Verify(c => c.Dispose(), Times.Once());
+
+        [Test]
+        public async Task ConnectionBeginTransactionFactoryIsRight_ReturnsCommand()
+        {
+            var result = await matchAsync(
+                from comm in _command
+                select comm.EndDialogAsync(c => Task.FromResult(1), Guid.Empty),
+                c => c,
+                err => err);
+
+            Expect(result.IsRight, Is.True);
+            _mockCommand.VerifySet(c => c.Transaction = _mockTransaction.Object, Times.Once());
+            _mockCommand.Verify(c => c.Dispose(), Times.Once());
+        }
+
+        [Test]
+        public async Task SendAsyncQueryOk_ReturnsUnit()
+        {
+            var unit = await matchAsync(
+                from cmd in _command
+                select cmd.SendAsync(c => Task.FromResult(1), BrokerMessage.Empty.WithType("type")),
+                right: val => val,
+                left: err => err);
+
+            Expect(unit.IsRight, Is.True);
 
             _mockCommand.VerifySet(c => c.CommandText = "SEND ON CONVERSATION @conversation MESSAGE TYPE [type] (@message)", Times.Once());
 
@@ -153,63 +222,25 @@ namespace Broker.UnitTests
         }
 
         [Test]
-        public async Task SendAsync_CommandIsLeft_ReturnsUnit()
+        public async Task SendAsyncQueryThrows_ReturnsError()
         {
-            _mockParams.Setup(p => p.Add(It.IsAny<object>())).Callback((object obj) =>
-            {
-                var param = obj as SqlParameter;
-                if(param.SqlDbType == SqlDbType.NVarChar)
-                    param.Value = "string";
-                else if(param.SqlDbType == SqlDbType.UniqueIdentifier)
-                    param.Value = Guid.Empty;
+            var unit = await matchAsync(
+                from cmd in _command
+                select cmd.SendAsync(c => { throw new Exception("error"); }, BrokerMessage.Empty),
+                right: val => val,
+                left: err => err);
 
-                _addedParams.Add(param);
-            });
-
-            var result = await SendAsync(
-                Left<string, IDbCommand>("error"),
-                cmd => Task.FromResult(1),
-                new BrokerMessage("type", string.Empty, Guid.Empty, Guid.Empty));
-
-            Expect(match(from r in result select r, unit => string.Empty, error => error), Does.Contain("error"));
-        }
-    }
-
-    [TestFixture]
-    public class ReceiveAsyncTests : AssertionHelper
-    {
-        Mock<IDbCommand> _mockCommand;
-        Mock<IDataParameterCollection> _mockParams;
-        List<SqlParameter> _addedParams;
-
-        [SetUp]
-        public void Setup()
-        {
-            _addedParams = new List<SqlParameter>();
-            _mockParams = new Mock<IDataParameterCollection>();
-            _mockCommand = new Mock<IDbCommand>();
-            _mockCommand.Setup(c => c.Parameters).Returns(_mockParams.Object);
+            Expect(match(from r in unit select r, u => string.Empty, error => error), Does.Contain("error"));
         }
 
         [Test]
         public async Task ReceiveAsync_ShouldExecuteQueryAndReturnNonEmptyMessageWhenMessageHasValue()
         {
-            _mockParams.Setup(p => p.Add(It.IsAny<object>())).Callback((object obj) =>
-            {
-                var param = obj as SqlParameter;
-                if(param.SqlDbType == SqlDbType.NVarChar)
-                    param.Value = "string";
-                else if(param.SqlDbType == SqlDbType.UniqueIdentifier)
-                    param.Value = Guid.Empty;
-
-                _addedParams.Add(param);
-            });
-
-            var message = await ReceiveAsync(
-                Right<string, IDbCommand>(_mockCommand.Object),
-                (cmd, token) => Task.FromResult(1),
-                "queue",
-                new CancellationTokenSource().Token);
+            var message = await matchAsync(
+                from cmd in _command
+                select cmd.ReceiveAsync((c, token) => Task.FromResult(1), "queue", new CancellationTokenSource().Token),
+                right: val => val,
+                left: err => err);
 
             Expect(message, EqualTo(new BrokerMessage("string", "string", Guid.Empty, Guid.Empty)));
 
@@ -237,11 +268,11 @@ namespace Broker.UnitTests
                 _addedParams.Add(param);
             });
 
-            var message = await ReceiveAsync(
-                Right<string, IDbCommand>(_mockCommand.Object),
-                (cmd, token) => Task.FromResult(1),
-                "queue",
-                new CancellationTokenSource().Token);
+            var message = await matchAsync(
+                from cmd in _command
+                select cmd.ReceiveAsync((c, token) => Task.FromResult(1), "queue", new CancellationTokenSource().Token),
+                right: val => val,
+                left: err => err);
 
             Expect(message, EqualTo(BrokerMessage.Empty));
 
@@ -259,52 +290,26 @@ namespace Broker.UnitTests
         }
 
         [Test]
-        public async Task ReceiveAsync_CommandIsLeft_ReturnsError()
+        public async Task ReceiveAsyncQueryThrows_ReturnsError()
         {
-            var message = await ReceiveAsync(
-                Left<string, IDbCommand>("error"),
-                (cmd, token) => Task.FromResult(1),
-                "queue",
-                new CancellationTokenSource().Token);
+            var message = await _command
+                    .Right(async cmd => await cmd.ReceiveAsync(
+                        (c, token) => { throw new Exception("error"); },
+                        "queue",
+                        new CancellationTokenSource().Token))
+                    .Left(async err => await Task.FromResult(err));
 
-            Expect(match(message, msg => string.Empty, error => error), Does.Contain("error"));
-        }
-    }
-
-    [TestFixture]
-    public class EndDialogAsyncTests : AssertionHelper
-    {
-        Mock<IDbCommand> _mockCommand;
-        Mock<IDataParameterCollection> _mockParams;
-        List<SqlParameter> _addedParams;
-
-        [SetUp]
-        public void Setup()
-        {
-            _addedParams = new List<SqlParameter>();
-            _mockParams = new Mock<IDataParameterCollection>();
-            _mockCommand = new Mock<IDbCommand>();
-            _mockCommand.Setup(c => c.Parameters).Returns(_mockParams.Object);
+            Expect(match(from r in message select r, u => string.Empty, error => error), Does.Contain("error"));
         }
 
         [Test]
-        public async Task CommandIsRight_ReturnsUnit()
+        public async Task EndDialogQueryOk_ReturnsUnit()
         {
-            _mockParams.Setup(p => p.Add(It.IsAny<object>())).Callback((object obj) =>
-            {
-                var param = obj as SqlParameter;
-                if(param.SqlDbType == SqlDbType.UniqueIdentifier)
-                    param.Value = Guid.Empty;
+            var unit = await _command
+                .Right(async cmd => await cmd.EndDialogAsync(c => Task.FromResult(1), Guid.Empty))
+                .Left(async s => await Task.FromResult(s));
 
-                _addedParams.Add(param);
-            });
-
-            var unit = await EndDialogAsync(
-                Right<string, IDbCommand>(_mockCommand.Object),
-                cmd => Task.FromResult(1),
-                Guid.Empty);
-
-            Expect(unit, EqualTo(Unit.Default));
+            Expect(unit.IsRight, Is.True);
 
             _mockCommand.VerifySet(c => c.CommandText = "END CONVERSATION @conversation", Times.Once());
 
@@ -312,54 +317,33 @@ namespace Broker.UnitTests
         }
 
         [Test]
-        public async Task CommandIsLeft_ReturnsUnit()
+        public async Task EndDialogQueryThrows_ReturnsError()
         {
-            _mockParams.Setup(p => p.Add(It.IsAny<object>())).Callback((object obj) =>
-            {
-                var param = obj as SqlParameter;
-                if(param.SqlDbType == SqlDbType.UniqueIdentifier)
-                    param.Value = Guid.Empty;
+            var unit = await _command
+                .Right(async cmd => await cmd.EndDialogAsync(c => { throw new Exception("error"); }, Guid.Empty))
+                .Left(async s => await Task.FromResult(s));
 
-                _addedParams.Add(param);
-            });
-
-            var result = await EndDialogAsync(
-                Left<string, IDbCommand>("error"),
-                cmd => Task.FromResult(1),
-                Guid.Empty);
-
-            Expect(match(result, msg => string.Empty, error => error), Does.Contain("error"));
+            Expect(match(unit, msg => string.Empty, error => error), Does.Contain("error"));
         }
     }
 
     [TestFixture]
-    public class CommitTests : AssertionHelper
+    public class DisposeNotCalled : CommandTests
     {
         [Test]
-        public void CommitOk_ReturnsUnit()
+        public async Task ConnectionBeginTransactionFactoryIsLeft_ReturnsError()
         {
-            var unit = Commit(Right<string, IDbTransaction>(new Mock<IDbTransaction>().Object));
+            _mockDbConnection.Setup(c => c.CreateCommand()).Throws(new Exception("error"));
 
-            Expect(unit, EqualTo(Unit.Default));
-        }
+            var result = await matchAsync(
+                from conn in openConnection(_mockDbConnection.Object)
+                from trans in beginTransaction(conn)
+                from command in createCommand(trans)
+                select command.EndDialogAsync(c => Task.FromResult(1), Guid.Empty),
+                c => c,
+                err => err);
 
-        [Test]
-        public void CommitThrows_ReturnsError()
-        {
-            var mockTransaction = new Mock<IDbTransaction>();
-            mockTransaction.Setup(t => t.Commit()).Throws(new Exception("error"));
-
-            var unit = Commit(Right<string, IDbTransaction>(mockTransaction.Object));
-
-            Expect(match(unit, u => string.Empty, e => e), Does.Contain("error"));
-        }
-
-        [Test]
-        public void TransactionIsLeft_ReturnsError()
-        {
-            var unit = Commit(Left<string, IDbTransaction>("error"));
-
-            Expect(unit.Match(u => string.Empty, error => error), Does.Contain("error"));
+            Expect(match(result, cmd => "cmd", error => error), Does.Contain("error"));
         }
     }
 }

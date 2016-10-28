@@ -11,27 +11,29 @@ namespace Psns.Common.Clients.Broker
         public readonly string MessageType;
         public readonly string Message;
         public readonly Guid ConversationGroup;
-        public readonly Guid ConversationHandle;
+        public readonly Guid Conversation;
 
-        public BrokerMessage(string messageType, string message, Guid conversationGroup, Guid conversationHandle)
+        public BrokerMessage(string messageType, string message, Guid conversationGroup, Guid conversation)
         {
             MessageType = messageType ?? string.Empty;
             Message = message ?? string.Empty;
             ConversationGroup = conversationGroup;
-            ConversationHandle = conversationHandle;
+            Conversation = conversation;
         }
 
         public BrokerMessage WithMessage(string message) =>
-            new BrokerMessage(MessageType, message, ConversationGroup, ConversationHandle);
+            new BrokerMessage(MessageType, message, ConversationGroup, Conversation);
 
         public BrokerMessage WithType(string messageType) =>
-            new BrokerMessage(messageType, Message, ConversationGroup, ConversationHandle);
+            new BrokerMessage(messageType, Message, ConversationGroup, Conversation);
 
         public override string ToString() =>
-            $@"Type: {MessageType} Message: {Message} Conversation Group: {ConversationGroup.ToString()} Dialog: {ConversationHandle.ToString()}";
+            $@"Type: {MessageType} Message: {Message} Conversation Group: {ConversationGroup.ToString()} Conversation: {Conversation.ToString()}";
 
+        [Pure]
         public static bool operator ==(BrokerMessage a, BrokerMessage b) => a.Equals(b);
 
+        [Pure]
         public static bool operator !=(BrokerMessage a, BrokerMessage b) => !a.Equals(b);
 
         public override bool Equals(object obj)
@@ -43,7 +45,7 @@ namespace Psns.Common.Clients.Broker
                 return message.Message == Message &&
                     message.MessageType == MessageType &&
                     message.ConversationGroup == ConversationGroup &&
-                    message.ConversationHandle == ConversationHandle;
+                    message.Conversation == Conversation;
             }
             else
                 return false;
@@ -53,6 +55,6 @@ namespace Psns.Common.Clients.Broker
             Message.GetHashCode() ^
             MessageType.GetHashCode() ^
             ConversationGroup.GetHashCode() ^
-            ConversationHandle.GetHashCode();
+            Conversation.GetHashCode();
     }
 }
