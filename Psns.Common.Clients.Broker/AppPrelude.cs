@@ -3,7 +3,6 @@ using System.Data;
 using System.Threading.Tasks;
 using System.Diagnostics.Contracts;
 using LanguageExt;
-using Psns.Common.SystemExtensions;
 
 namespace Psns.Common.Clients.Broker
 {
@@ -17,7 +16,7 @@ namespace Psns.Common.Clients.Broker
             new BrokerMessage(messageType, message, conversationGroup, conversation);
 
         [Pure]
-        public static Either<string, OpenConnection> openConnection(IDbConnection connection) =>
+        public static Either<Exception, OpenConnection> openConnection(IDbConnection connection) =>
             safe(() =>
             {
                 connection.Open();
@@ -25,18 +24,18 @@ namespace Psns.Common.Clients.Broker
             });
 
         [Pure]
-        public static Either<string, Transaction> beginTransaction(Either<string, OpenConnection> connection) =>
+        public static Either<Exception, Transaction> beginTransaction(Either<Exception, OpenConnection> connection) =>
             from conn in connection
             from trans in conn.BeginTransaction()
             select new Transaction(trans);
 
         [Pure]
-        public static Either<string, Command> createCommand(Either<string, Transaction> transaction) =>
+        public static Either<Exception, Command> createCommand(Either<Exception, Transaction> transaction) =>
             from trans in transaction
             select new Command(trans.CreateCommand);
 
         [Pure]
-        public async static Task<R2> matchAsync<T, R2>(Either<string, T> self, Func<T, Task<R2>> right, Func<string, R2> left) =>
+        public async static Task<R2> matchAsync<T, L, R2>(Either<L, T> self, Func<T, Task<R2>> right, Func<L, R2> left) =>
             await self.MatchAsync(right, left);
 
         /// <summary>
@@ -46,7 +45,7 @@ namespace Psns.Common.Clients.Broker
         /// <param name="fun"></param>
         /// <returns>A string representation of the exception on failure</returns>
         [Pure]
-        public static Either<string, T> safe<T>(Func<T> fun)
+        public static Either<Exception, T> safe<T>(Func<T> fun)
         {
             try
             {
@@ -54,12 +53,12 @@ namespace Psns.Common.Clients.Broker
             }
             catch(Exception e)
             {
-                return e.GetExceptionChainMessages();
+                return e;
             }
         }
 
         [Pure]
-        public async static Task<Either<string, T>> safeAsync<T>(Func<Task<T>> f)
+        public async static Task<Either<Exception, T>> safeAsync<T>(Func<Task<T>> f)
         {
             try
             {
@@ -67,7 +66,7 @@ namespace Psns.Common.Clients.Broker
             }
             catch(Exception e)
             {
-                return await Task.FromResult(e.ToString());
+                return await Task.FromResult(e);
             }
         }
 

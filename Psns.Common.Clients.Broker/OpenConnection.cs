@@ -17,7 +17,7 @@ namespace Psns.Common.Clients.Broker
             _connection = connection;
         }
 
-        internal Either<string, IDbTransaction> BeginTransaction() =>
+        internal Either<Exception, IDbTransaction> BeginTransaction() =>
             safe(_connection.BeginTransaction);
 
         #region IDisposable Support

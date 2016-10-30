@@ -1,4 +1,5 @@
-﻿using System.Data;
+﻿using System;
+using System.Data;
 using LanguageExt;
 using static Psns.Common.Clients.Broker.AppPrelude;
 
@@ -16,7 +17,7 @@ namespace Psns.Common.Clients.Broker
             _transaction = transaction;
         }
 
-        internal Either<string, IDbCommand> CreateCommand() =>
+        internal Either<Exception, IDbCommand> CreateCommand() =>
             safe(() =>
             {
                 var command = _transaction.Connection.CreateCommand();
@@ -24,7 +25,7 @@ namespace Psns.Common.Clients.Broker
                 return command;
             });
 
-        public Either<string, Unit> Commit() =>
+        public Either<Exception, Unit> Commit() =>
             safe(() =>
             {
                 _transaction.Commit();

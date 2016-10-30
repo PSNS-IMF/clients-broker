@@ -37,7 +37,7 @@ namespace Broker.UnitTests
 
             var connection = openConnection(_mockConnection.Object);
 
-            Expect(connection.Match(con => string.Empty, error => error), Does.Contain("error"));
+            Expect(connection.Match(con => string.Empty, error => error.Message), Does.Contain("error"));
         }
 
         [Test]
@@ -73,7 +73,7 @@ namespace Broker.UnitTests
     {
         Mock<IDbConnection> _mockDbConnection;
         Mock<IDbTransaction> _mockTransaction;
-        Either<string, OpenConnection> _connection;
+        Either<Exception, OpenConnection> _connection;
 
         [SetUp]
         public void Setup()
@@ -108,7 +108,7 @@ namespace Broker.UnitTests
                 Right: c => c,
                 Left: err => err);
 
-            Expect(match(transaction, trans => "", error => error), Does.Contain("error"));
+            Expect(match(transaction, trans => "", error => error.Message), Does.Contain("error"));
         }
 
         [Test]
@@ -136,7 +136,7 @@ namespace Broker.UnitTests
                 Right: u => u,
                 Left: err => err);
 
-            Expect(match(unit, u => string.Empty, e => e), Does.Contain("error"));
+            Expect(match(unit, u => string.Empty, e => e.Message), Does.Contain("error"));
         }
     }
 
@@ -147,7 +147,7 @@ namespace Broker.UnitTests
         protected Mock<IDbCommand> _mockCommand;
         protected Mock<IDataParameterCollection> _mockParams;
         protected List<SqlParameter> _addedParams;
-        protected Either<string, Command> _command;
+        protected Either<Exception, Command> _command;
 
         [SetUp]
         public void Setup()
@@ -230,7 +230,7 @@ namespace Broker.UnitTests
                 right: val => val,
                 left: err => err);
 
-            Expect(match(from r in unit select r, u => string.Empty, error => error), Does.Contain("error"));
+            Expect(match(from r in unit select r, u => string.Empty, error => error.Message), Does.Contain("error"));
         }
 
         [Test]
@@ -299,7 +299,7 @@ namespace Broker.UnitTests
                         new CancellationTokenSource().Token))
                     .Left(async err => await Task.FromResult(err));
 
-            Expect(match(from r in message select r, u => string.Empty, error => error), Does.Contain("error"));
+            Expect(match(from r in message select r, u => string.Empty, error => error.Message), Does.Contain("error"));
         }
 
         [Test]
@@ -323,7 +323,7 @@ namespace Broker.UnitTests
                 .Right(async cmd => await cmd.EndDialogAsync(c => { throw new Exception("error"); }, Guid.Empty))
                 .Left(async s => await Task.FromResult(s));
 
-            Expect(match(unit, msg => string.Empty, error => error), Does.Contain("error"));
+            Expect(match(unit, msg => string.Empty, error => error.Message), Does.Contain("error"));
         }
     }
 
@@ -343,7 +343,7 @@ namespace Broker.UnitTests
                 c => c,
                 err => err);
 
-            Expect(match(result, cmd => "cmd", error => error), Does.Contain("error"));
+            Expect(match(result, cmd => "cmd", error => error.Message), Does.Contain("error"));
         }
     }
 }

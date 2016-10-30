@@ -14,14 +14,14 @@ namespace Psns.Common.Clients.Broker
     [Pure]
     public class Command
     {
-        readonly Func<Either<string, IDbCommand>> _commandFactory;
+        readonly Func<Either<Exception, IDbCommand>> _commandFactory;
 
-        internal Command(Func<Either<string, IDbCommand>> commandFactory)
+        internal Command(Func<Either<Exception, IDbCommand>> commandFactory)
         {
             _commandFactory = commandFactory;
         }
 
-        public async Task<Either<string, BrokerMessage>> ReceiveAsync(
+        public async Task<Either<Exception, BrokerMessage>> ReceiveAsync(
             Func<IDbCommand, CancellationToken, Task<int>> query,
             string queueName,
             CancellationToken cancelToken)
@@ -74,7 +74,7 @@ namespace Psns.Common.Clients.Broker
                 left: error => error);
         }
 
-        public async Task<Either<string, Unit>> SendAsync(
+        public async Task<Either<Exception, Unit>> SendAsync(
             Func<IDbCommand, Task<int>> query,
             BrokerMessage message)
         {
@@ -101,7 +101,7 @@ namespace Psns.Common.Clients.Broker
                 left: error => error);
         }
 
-        public async Task<Either<string, Unit>> EndDialogAsync(
+        public async Task<Either<Exception, Unit>> EndDialogAsync(
             Func<IDbCommand, Task<int>> query,
             Guid conversation)
         {
