@@ -17,12 +17,12 @@ namespace Psns.Common.Clients.Broker
             _transaction = transaction;
         }
 
-        internal Either<Exception, IDbCommand> CreateCommand() =>
-            safe(() =>
+        internal Either<Exception, Func<IDbCommand>> CreateCommandFactory() =>
+            safe<Func<IDbCommand>>(() =>
             {
                 var command = _transaction.Connection.CreateCommand();
                 command.Transaction = _transaction;
-                return command;
+                return () => command;
             });
 
         public Either<Exception, Unit> Commit() =>

@@ -56,8 +56,8 @@ namespace Broker.UnitTests
             var result = match(
                 from conn in openConnection(_mockConnection.Object)
                 from trans in beginTransaction(conn)
-                from cmd in createCommand(trans)
-                from unit in cmd.EndDialogAsync(c => Task.FromResult(1), Guid.Empty).Result
+                from cmd in createCommandFactory(trans)
+                from unit in endDialogAsync(() => Right<Exception, Func<IDbCommand>>(() => mockCommand.Object), c => Task.FromResult(1), Guid.Empty).Result
                 from ut in trans.Commit()
                 select safe(() => dispose(conn)),
                 u => u,
@@ -147,7 +147,7 @@ namespace Broker.UnitTests
         protected Mock<IDbCommand> _mockCommand;
         protected Mock<IDataParameterCollection> _mockParams;
         protected List<SqlParameter> _addedParams;
-        protected Either<Exception, Command> _command;
+        protected Func<Either<Exception, Func<IDbCommand>>> _commandFactory;
 
         [SetUp]
         public void Setup()
@@ -173,11 +173,12 @@ namespace Broker.UnitTests
             _mockTransaction.Setup(t => t.Connection).Returns(_mockDbConnection.Object);
             _mockCommand.Setup(c => c.Parameters).Returns(_mockParams.Object);
 
-            _command = match(
+            _commandFactory = () => match(
                 from conn in openConnection(_mockDbConnection.Object)
                 from trans in beginTransaction(conn)
-                select createCommand(trans),
-                c => c,
+                from factory in createCommandFactory(trans)
+                select factory,
+                c => Right<Exception, Func<IDbCommand>>(c),
                 err => err);
         }
     }
@@ -192,10 +193,9 @@ namespace Broker.UnitTests
         public async Task ConnectionBeginTransactionFactoryIsRight_ReturnsCommand()
         {
             var result = await matchAsync(
-                from comm in _command
-                select comm.EndDialogAsync(c => Task.FromResult(1), Guid.Empty),
-                c => c,
-                err => err);
+                endDialogAsync(_commandFactory, c => Task.FromResult(1), Guid.Empty),
+                right: c => Right<Exception, Unit>(c),
+                left: err => Left<Exception, Unit>(err));
 
             Expect(result.IsRight, Is.True);
             _mockCommand.VerifySet(c => c.Transaction = _mockTransaction.Object, Times.Once());
@@ -206,9 +206,8 @@ namespace Broker.UnitTests
         public async Task SendAsyncQueryOk_ReturnsUnit()
         {
             var unit = await matchAsync(
-                from cmd in _command
-                select cmd.SendAsync(c => Task.FromResult(1), BrokerMessage.Empty.WithType("type")),
-                right: val => val,
+                sendAsync(_commandFactory, c => Task.FromResult(1), BrokerMessage.Empty.WithType("type")),
+                right: val => Right<Exception, Unit>(val),
                 left: err => err);
 
             Expect(unit.IsRight, Is.True);
@@ -225,9 +224,8 @@ namespace Broker.UnitTests
         public async Task SendAsyncQueryThrows_ReturnsError()
         {
             var unit = await matchAsync(
-                from cmd in _command
-                select cmd.SendAsync(c => { throw new Exception("error"); }, BrokerMessage.Empty),
-                right: val => val,
+                sendAsync(_commandFactory, c => { throw new Exception("error"); }, BrokerMessage.Empty),
+                right: val => Right<Exception, Unit>(val),
                 left: err => err);
 
             Expect(match(from r in unit select r, u => string.Empty, error => error.Message), Does.Contain("error"));
@@ -237,9 +235,8 @@ namespace Broker.UnitTests
         public async Task ReceiveAsync_ShouldExecuteQueryAndReturnNonEmptyMessageWhenMessageHasValue()
         {
             var message = await matchAsync(
-                from cmd in _command
-                select cmd.ReceiveAsync((c, token) => Task.FromResult(1), "queue", new CancellationTokenSource().Token),
-                right: val => val,
+                receiveAsync(_commandFactory, (c, token) => Task.FromResult(1), "queue", new CancellationTokenSource().Token),
+                right: val => Right<Exception, BrokerMessage>(val),
                 left: err => err);
 
             Expect(message, EqualTo(new BrokerMessage("string", "string", Guid.Empty, Guid.Empty)));
@@ -269,9 +266,8 @@ namespace Broker.UnitTests
             });
 
             var message = await matchAsync(
-                from cmd in _command
-                select cmd.ReceiveAsync((c, token) => Task.FromResult(1), "queue", new CancellationTokenSource().Token),
-                right: val => val,
+                receiveAsync(_commandFactory, (c, token) => Task.FromResult(1), "queue", new CancellationTokenSource().Token),
+                right: val => Right<Exception, BrokerMessage>(val),
                 left: err => err);
 
             Expect(message, EqualTo(BrokerMessage.Empty));
@@ -292,12 +288,10 @@ namespace Broker.UnitTests
         [Test]
         public async Task ReceiveAsyncQueryThrows_ReturnsError()
         {
-            var message = await _command
-                    .Right(async cmd => await cmd.ReceiveAsync(
-                        (c, token) => { throw new Exception("error"); },
-                        "queue",
-                        new CancellationTokenSource().Token))
-                    .Left(async err => await Task.FromResult(err));
+            var message = await matchAsync(
+                receiveAsync(_commandFactory, (c, token) => { throw new Exception("error"); }, "queue", new CancellationTokenSource().Token),
+                right: val => Right<Exception, BrokerMessage>(val),
+                left: err => err);
 
             Expect(match(from r in message select r, u => string.Empty, error => error.Message), Does.Contain("error"));
         }
@@ -305,9 +299,10 @@ namespace Broker.UnitTests
         [Test]
         public async Task EndDialogQueryOk_ReturnsUnit()
         {
-            var unit = await _command
-                .Right(async cmd => await cmd.EndDialogAsync(c => Task.FromResult(1), Guid.Empty))
-                .Left(async s => await Task.FromResult(s));
+            var unit = await matchAsync(
+                endDialogAsync(_commandFactory, c => Task.FromResult(1), Guid.Empty),
+                u => Right<Exception, Unit>(u),
+                err => err);
 
             Expect(unit.IsRight, Is.True);
 
@@ -319,9 +314,10 @@ namespace Broker.UnitTests
         [Test]
         public async Task EndDialogQueryThrows_ReturnsError()
         {
-            var unit = await _command
-                .Right(async cmd => await cmd.EndDialogAsync(c => { throw new Exception("error"); }, Guid.Empty))
-                .Left(async s => await Task.FromResult(s));
+            var unit = await matchAsync(
+                endDialogAsync(_commandFactory, c => { throw new Exception("error"); }, Guid.Empty),
+                u => Right<Exception, Unit>(u),
+                err => err);
 
             Expect(match(unit, msg => string.Empty, error => error.Message), Does.Contain("error"));
         }
@@ -338,8 +334,8 @@ namespace Broker.UnitTests
             var result = await matchAsync(
                 from conn in openConnection(_mockDbConnection.Object)
                 from trans in beginTransaction(conn)
-                from command in createCommand(trans)
-                select command.EndDialogAsync(c => Task.FromResult(1), Guid.Empty),
+                from command in createCommandFactory(trans)
+                select endDialogAsync(_commandFactory, c => Task.FromResult(1), Guid.Empty),
                 c => c,
                 err => err);
 
