@@ -2,7 +2,6 @@
 using System.Data;
 using System.Data.SqlClient;
 using System.Diagnostics.Contracts;
-using System.Threading;
 using System.Threading.Tasks;
 using LanguageExt;
 using static LanguageExt.List;
@@ -31,11 +30,10 @@ namespace Psns.Common.Clients.Broker
                     select factory;
 
         public static readonly Func<
-            Func<Either<Exception, Func<IDbCommand>>>,
-            Func<IDbCommand, CancellationToken, Task<int>>,
+            Either<Exception, Func<IDbCommand>>,
+            Func<IDbCommand, Task<int>>,
             string,
-            CancellationToken,
-            Task<Either<Exception, BrokerMessage>>> receiveAsync = (commandFactory, query, queueName, cancelToken) =>
+            Task<Either<Exception, BrokerMessage>>> receiveAsync = (commandFactory, query, queueName) =>
             {
                 var parameters = new[]
                 {
@@ -46,7 +44,7 @@ namespace Psns.Common.Clients.Broker
                 };
 
                 return matchAsync(
-                    from command in commandFactory()
+                    from command in commandFactory
                     select command(),
                     right: command =>
                         use(
@@ -68,7 +66,7 @@ namespace Psns.Common.Clients.Broker
 
                                 return await safeAsync(async () =>
                                 {
-                                    await query(cmd, cancelToken);
+                                    await query(cmd);
 
                                     if(!(parameters[0].Value is DBNull))
                                     {
@@ -86,7 +84,7 @@ namespace Psns.Common.Clients.Broker
             };
 
         public static readonly Func<
-            Func<Either<Exception, Func<IDbCommand>>>,
+            Either<Exception, Func<IDbCommand>>,
             Func<IDbCommand, Task<int>>,
             BrokerMessage,
             Task<Either<Exception, Unit>>> sendAsync = (commandFactory, query, message) =>
@@ -98,7 +96,7 @@ namespace Psns.Common.Clients.Broker
                 };
 
                 return matchAsync(
-                    from command in commandFactory()
+                    from command in commandFactory
                     select command(),
                     right: command =>
                         use(
@@ -115,10 +113,10 @@ namespace Psns.Common.Clients.Broker
             };
 
         public static readonly Func<
-            Func<Either<Exception, Func<IDbCommand>>>,
+            Either<Exception, Func<IDbCommand>>,
             Func<IDbCommand, Task<int>>,
             Guid,
-            Task<Either<Exception, Unit>>> endDialogAsync = (commandFactory, query, conversation) =>
+            Task<Either<Exception, Unit>>> endConversationAsync = (commandFactory, query, conversation) =>
             {
                 var parameters = new[]
                 {
@@ -126,7 +124,7 @@ namespace Psns.Common.Clients.Broker
                 };
 
                 return matchAsync(
-                    from command in commandFactory()
+                    from command in commandFactory
                     select command(),
                     right: command =>
                         use(
