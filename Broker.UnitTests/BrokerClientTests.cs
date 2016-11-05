@@ -56,7 +56,7 @@ namespace Broker.UnitTests
                 from conn in openConnection(_mockConnection.Object)
                 from trans in beginTransaction(conn)
                 from cmd in createCommandFactory(trans)
-                from unit in endConversationAsync(Right<Exception, Func<IDbCommand>>(() => mockCommand.Object), c => Task.FromResult(1), Guid.Empty).Result
+                from unit in endConversationAsync(cmd, c => Task.FromResult(1), Guid.Empty).Result
                 from ut in trans.Commit()
                 select safe(() => dispose(conn)),
                 u => u,
@@ -146,7 +146,7 @@ namespace Broker.UnitTests
         protected Mock<IDbCommand> _mockCommand;
         protected Mock<IDataParameterCollection> _mockParams;
         protected List<SqlParameter> _addedParams;
-        protected Either<Exception, Func<IDbCommand>> _commandFactory;
+        protected Either<Exception, Func<Either<Exception, IDbCommand>>> _commandFactory;
 
         [SetUp]
         public void Setup()
@@ -177,7 +177,7 @@ namespace Broker.UnitTests
                 from trans in beginTransaction(conn)
                 from factory in createCommandFactory(trans)
                 select factory,
-                c => Right<Exception, Func<IDbCommand>>(c),
+                c => Right<Exception, Func<Either<Exception, IDbCommand>>>(c),
                 err => err);
         }
     }
@@ -339,6 +339,26 @@ namespace Broker.UnitTests
                 err => err);
 
             Expect(match(result, cmd => "cmd", error => error.Message), Does.Contain("error"));
+        }
+    }
+
+    [TestFixture]
+    public class MultiCalls : CommandTests
+    {
+        [Test]
+        public void SendAndEndConversationQueryOk_CreateCommandCalledTwiceReturnsUnit()
+        {
+            var unit = match(
+                from sendResult in sendAsync(_commandFactory, cmd => Task.FromResult(1), BrokerMessage.Empty).Result
+                from endResult in endConversationAsync(_commandFactory, c => Task.FromResult(1), Guid.Empty).Result
+                select endResult,
+                u => Right<Exception, Unit>(u),
+                err => err);
+
+            Expect(unit.IsRight, Is.True);
+
+            _mockDbConnection.Verify(c => c.CreateCommand(), Times.Exactly(2));
+            _mockCommand.Verify(cmd => cmd.Dispose(), Times.Exactly(2));
         }
     }
 }

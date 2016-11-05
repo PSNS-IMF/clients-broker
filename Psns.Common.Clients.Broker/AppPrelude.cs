@@ -23,14 +23,13 @@ namespace Psns.Common.Clients.Broker
             from trans in conn.BeginTransaction()
             select new Transaction(trans);
 
-        public static readonly Func<Either<Exception, Transaction>, Either<Exception, Func<IDbCommand>>> createCommandFactory =
+        public static readonly Func<Either<Exception, Transaction>, Either<Exception, Func<Either<Exception, IDbCommand>>>> createCommandFactory =
             transaction =>
                     from trans in transaction
-                    from factory in trans.CreateCommandFactory()
-                    select factory;
+                    select trans.CreateCommandFactory();
 
         public static readonly Func<
-            Either<Exception, Func<IDbCommand>>,
+            Either<Exception, Func<Either<Exception, IDbCommand>>>,
             Func<IDbCommand, Task<int>>,
             string,
             Task<Either<Exception, BrokerMessage>>> receiveAsync = (commandFactory, query, queueName) =>
@@ -44,8 +43,9 @@ namespace Psns.Common.Clients.Broker
                 };
 
                 return matchAsync(
-                    from command in commandFactory
-                    select command(),
+                    from factory in commandFactory
+                    from command in factory()
+                    select command,
                     right: command =>
                         use(
                             command,
@@ -84,7 +84,7 @@ namespace Psns.Common.Clients.Broker
             };
 
         public static readonly Func<
-            Either<Exception, Func<IDbCommand>>,
+            Either<Exception, Func<Either<Exception, IDbCommand>>>,
             Func<IDbCommand, Task<int>>,
             BrokerMessage,
             Task<Either<Exception, Unit>>> sendAsync = (commandFactory, query, message) =>
@@ -96,8 +96,9 @@ namespace Psns.Common.Clients.Broker
                 };
 
                 return matchAsync(
-                    from command in commandFactory
-                    select command(),
+                    from factory in commandFactory
+                    from command in factory()
+                    select command,
                     right: command =>
                         use(
                             command,
@@ -113,7 +114,7 @@ namespace Psns.Common.Clients.Broker
             };
 
         public static readonly Func<
-            Either<Exception, Func<IDbCommand>>,
+            Either<Exception, Func<Either<Exception, IDbCommand>>>,
             Func<IDbCommand, Task<int>>,
             Guid,
             Task<Either<Exception, Unit>>> endConversationAsync = (commandFactory, query, conversation) =>
@@ -124,8 +125,9 @@ namespace Psns.Common.Clients.Broker
                 };
 
                 return matchAsync(
-                    from command in commandFactory
-                    select command(),
+                    from factory in commandFactory
+                    from command in factory()
+                    select command,
                     right: command =>
                         use(
                             command,
