@@ -93,10 +93,13 @@ namespace Psns.Common.Clients.Broker
             BrokerMessage,
             Task<Either<Exception, Unit>>> sendAsync = (log, commandFactory, query, message) =>
             {
+                var messageParameter = new SqlParameter("@message", SqlDbType.NVarChar, message.Message.Length);
+                messageParameter.Value = message.Message;
+
                 var parameters = new[]
                 {
-                    new SqlParameter("@message", SqlDbType.NVarChar, message.Message.Length),
-                    new SqlParameter("@conversation", SqlDbType.UniqueIdentifier)
+                    messageParameter,
+                    new SqlParameter("@conversation", message.Conversation)
                 };
 
                 return matchAsync(
@@ -128,7 +131,7 @@ namespace Psns.Common.Clients.Broker
             {
                 var parameters = new[]
                 {
-                    new SqlParameter("@conversation", SqlDbType.UniqueIdentifier)
+                    new SqlParameter("@conversation", conversation)
                 };
 
                 return matchAsync(

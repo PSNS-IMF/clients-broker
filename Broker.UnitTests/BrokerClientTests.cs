@@ -209,7 +209,7 @@ namespace Broker.UnitTests
         public async Task SendAsyncQueryOk_ReturnsUnit()
         {
             var unit = await matchAsync(
-                sendAsync(s => { }, _commandFactory, c => Task.FromResult(1), BrokerMessage.Empty.WithType("type")),
+                sendAsync(s => { }, _commandFactory, c => Task.FromResult(1), new BrokerMessage("type", "string", Guid.Empty, Guid.Empty)),
                 right: val => Right<Exception, Unit>(val),
                 left: err => err);
 
@@ -217,9 +217,9 @@ namespace Broker.UnitTests
 
             _mockCommand.VerifySet(c => c.CommandText = "SEND ON CONVERSATION @conversation MESSAGE TYPE [type] (@message)", Times.Once());
 
-            iter(new[] { "@message", "@conversation" }, name =>
+            iter(new[] { Tuple("@message", "string"), Tuple("@conversation", Guid.Empty.ToString()) }, msgConv =>
             {
-                Expect(exists(_addedParams, param => param.ParameterName == name), Is.True);
+                Expect(exists(_addedParams, param => param.ParameterName == msgConv.Item1 && param.Value.ToString() == msgConv.Item2), Is.True);
             });
         }
 
@@ -311,7 +311,7 @@ namespace Broker.UnitTests
 
             _mockCommand.VerifySet(c => c.CommandText = "END CONVERSATION @conversation", Times.Once());
 
-            Expect(exists(_addedParams, param => param.ParameterName == "@conversation"), Is.True);
+            Expect(exists(_addedParams, param => param.ParameterName == "@conversation" && param.Value.ToString() == Guid.Empty.ToString()), Is.True);
         }
 
         [Test]
