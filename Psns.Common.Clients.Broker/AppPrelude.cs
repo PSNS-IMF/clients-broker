@@ -29,10 +29,11 @@ namespace Psns.Common.Clients.Broker
                     select trans.CreateCommandFactory();
 
         public static readonly Func<
+            Action<string>,
             Either<Exception, Func<Either<Exception, IDbCommand>>>,
             Func<IDbCommand, Task<int>>,
             string,
-            Task<Either<Exception, BrokerMessage>>> receiveAsync = (commandFactory, query, queueName) =>
+            Task<Either<Exception, BrokerMessage>>> receiveAsync = (log, commandFactory, query, queueName) =>
             {
                 var parameters = new[]
                 {
@@ -64,6 +65,8 @@ namespace Psns.Common.Clients.Broker
                                     "@conversation = conversation_handle " +
                                     $"FROM [{queueName}]), TIMEOUT 5000;";
 
+                                logCommand("receiveAsync", cmd, log);
+
                                 return await safeAsync(async () =>
                                 {
                                     await query(cmd);
@@ -84,10 +87,11 @@ namespace Psns.Common.Clients.Broker
             };
 
         public static readonly Func<
+            Action<string>,
             Either<Exception, Func<Either<Exception, IDbCommand>>>,
             Func<IDbCommand, Task<int>>,
             BrokerMessage,
-            Task<Either<Exception, Unit>>> sendAsync = (commandFactory, query, message) =>
+            Task<Either<Exception, Unit>>> sendAsync = (log, commandFactory, query, message) =>
             {
                 var parameters = new[]
                 {
@@ -108,16 +112,19 @@ namespace Psns.Common.Clients.Broker
 
                                 cmd.CommandText = "SEND ON CONVERSATION @conversation MESSAGE TYPE [" + message.MessageType + "] (@message)";
 
+                                logCommand("sendAsync", cmd, log);
+
                                 return await safeAsync(async () => { await query(cmd); return Unit.Default; });
                             }),
                     left: error => error);
             };
 
         public static readonly Func<
+            Action<string>,
             Either<Exception, Func<Either<Exception, IDbCommand>>>,
             Func<IDbCommand, Task<int>>,
             Guid,
-            Task<Either<Exception, Unit>>> endConversationAsync = (commandFactory, query, conversation) =>
+            Task<Either<Exception, Unit>>> endConversationAsync = (log, commandFactory, query, conversation) =>
             {
                 var parameters = new[]
                 {
@@ -136,6 +143,8 @@ namespace Psns.Common.Clients.Broker
                                 iter(parameters, parameter => cmd.Parameters.Add(parameter));
 
                                 cmd.CommandText = "END CONVERSATION @conversation";
+
+                                logCommand("endConversationAsync", cmd, log);
 
                                 return await safeAsync(async () => { await query(cmd); return Unit.Default; });
                             }),
@@ -193,6 +202,12 @@ namespace Psns.Common.Clients.Broker
         public static Unit dispose(IDisposable d)
         {
             d.Dispose();
+            return Unit.Default;
+        }
+
+        static Unit logCommand(Some<string> callerName, IDbCommand command, Action<string> log)
+        {
+            log($"{callerName} -> Param Count: {command.Parameters.Count} Connection State: {command.Connection.State.ToString()} Transaction Isolation Leve: {command.Transaction.IsolationLevel.ToString()}");
             return Unit.Default;
         }
     }

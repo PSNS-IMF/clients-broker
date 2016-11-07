@@ -48,6 +48,8 @@ namespace Broker.UnitTests
             var mockCommand = new Mock<IDbCommand>();
             var mockParams = new Mock<IDataParameterCollection>();
             mockCommand.Setup(c => c.Parameters).Returns(mockParams.Object);
+            mockCommand.Setup(c => c.Connection).Returns(_mockConnection.Object);
+            mockCommand.Setup(c => c.Transaction).Returns(mockTransaction.Object);
 
             _mockConnection.Setup(c => c.BeginTransaction()).Returns(mockTransaction.Object);
             _mockConnection.Setup(c => c.CreateCommand()).Returns(mockCommand.Object);
@@ -56,7 +58,7 @@ namespace Broker.UnitTests
                 from conn in openConnection(_mockConnection.Object)
                 from trans in beginTransaction(conn)
                 from cmd in createCommandFactory(trans)
-                from unit in endConversationAsync(cmd, c => Task.FromResult(1), Guid.Empty).Result
+                from unit in endConversationAsync(s => { }, cmd, c => Task.FromResult(1), Guid.Empty).Result
                 from ut in trans.Commit()
                 select safe(() => dispose(conn)),
                 u => u,
@@ -171,6 +173,8 @@ namespace Broker.UnitTests
             _mockDbConnection.Setup(c => c.CreateCommand()).Returns(_mockCommand.Object);
             _mockTransaction.Setup(t => t.Connection).Returns(_mockDbConnection.Object);
             _mockCommand.Setup(c => c.Parameters).Returns(_mockParams.Object);
+            _mockCommand.Setup(c => c.Connection).Returns(_mockDbConnection.Object);
+            _mockCommand.Setup(c => c.Transaction).Returns(_mockTransaction.Object);
 
             _commandFactory = match(
                 from conn in openConnection(_mockDbConnection.Object)
@@ -192,7 +196,7 @@ namespace Broker.UnitTests
         public async Task ConnectionBeginTransactionFactoryIsRight_ReturnsCommand()
         {
             var result = await matchAsync(
-                endConversationAsync(_commandFactory, c => Task.FromResult(1), Guid.Empty),
+                endConversationAsync(s => { }, _commandFactory, c => Task.FromResult(1), Guid.Empty),
                 right: c => Right<Exception, Unit>(c),
                 left: err => Left<Exception, Unit>(err));
 
@@ -205,7 +209,7 @@ namespace Broker.UnitTests
         public async Task SendAsyncQueryOk_ReturnsUnit()
         {
             var unit = await matchAsync(
-                sendAsync(_commandFactory, c => Task.FromResult(1), BrokerMessage.Empty.WithType("type")),
+                sendAsync(s => { }, _commandFactory, c => Task.FromResult(1), BrokerMessage.Empty.WithType("type")),
                 right: val => Right<Exception, Unit>(val),
                 left: err => err);
 
@@ -223,7 +227,7 @@ namespace Broker.UnitTests
         public async Task SendAsyncQueryThrows_ReturnsError()
         {
             var unit = await matchAsync(
-                sendAsync(_commandFactory, c => { throw new Exception("error"); }, BrokerMessage.Empty),
+                sendAsync(s => { }, _commandFactory, c => { throw new Exception("error"); }, BrokerMessage.Empty),
                 right: val => Right<Exception, Unit>(val),
                 left: err => err);
 
@@ -234,7 +238,7 @@ namespace Broker.UnitTests
         public async Task ReceiveAsync_ShouldExecuteQueryAndReturnNonEmptyMessageWhenMessageHasValue()
         {
             var message = await matchAsync(
-                receiveAsync(_commandFactory, cmd => Task.FromResult(1), "queue"),
+                receiveAsync(s => { }, _commandFactory, cmd => Task.FromResult(1), "queue"),
                 right: val => Right<Exception, BrokerMessage>(val),
                 left: err => err);
 
@@ -265,7 +269,7 @@ namespace Broker.UnitTests
             });
 
             var message = await matchAsync(
-                receiveAsync(_commandFactory, cmd => Task.FromResult(1), "queue"),
+                receiveAsync(s => { }, _commandFactory, cmd => Task.FromResult(1), "queue"),
                 right: val => Right<Exception, BrokerMessage>(val),
                 left: err => err);
 
@@ -288,7 +292,7 @@ namespace Broker.UnitTests
         public async Task ReceiveAsyncQueryThrows_ReturnsError()
         {
             var message = await matchAsync(
-                receiveAsync(_commandFactory, cmd => { throw new Exception("error"); }, "queue"),
+                receiveAsync(s => { }, _commandFactory, cmd => { throw new Exception("error"); }, "queue"),
                 right: val => Right<Exception, BrokerMessage>(val),
                 left: err => err);
 
@@ -299,7 +303,7 @@ namespace Broker.UnitTests
         public async Task EndConversationQueryOk_ReturnsUnit()
         {
             var unit = await matchAsync(
-                endConversationAsync(_commandFactory, c => Task.FromResult(1), Guid.Empty),
+                endConversationAsync(s => { }, _commandFactory, c => Task.FromResult(1), Guid.Empty),
                 u => Right<Exception, Unit>(u),
                 err => err);
 
@@ -314,7 +318,7 @@ namespace Broker.UnitTests
         public async Task EndConversationQueryThrows_ReturnsError()
         {
             var unit = await matchAsync(
-                endConversationAsync(_commandFactory, c => { throw new Exception("error"); }, Guid.Empty),
+                endConversationAsync(s => { }, _commandFactory, c => { throw new Exception("error"); }, Guid.Empty),
                 u => Right<Exception, Unit>(u),
                 err => err);
 
@@ -334,7 +338,7 @@ namespace Broker.UnitTests
                 from conn in openConnection(_mockDbConnection.Object)
                 from trans in beginTransaction(conn)
                 from command in createCommandFactory(trans)
-                select endConversationAsync(_commandFactory, c => Task.FromResult(1), Guid.Empty),
+                select endConversationAsync(s => { }, _commandFactory, c => Task.FromResult(1), Guid.Empty),
                 c => c,
                 err => err);
 
@@ -349,8 +353,8 @@ namespace Broker.UnitTests
         public void SendAndEndConversationQueryOk_CreateCommandCalledTwiceReturnsUnit()
         {
             var unit = match(
-                from sendResult in sendAsync(_commandFactory, cmd => Task.FromResult(1), BrokerMessage.Empty).Result
-                from endResult in endConversationAsync(_commandFactory, c => Task.FromResult(1), Guid.Empty).Result
+                from sendResult in sendAsync(s => { }, _commandFactory, cmd => Task.FromResult(1), BrokerMessage.Empty).Result
+                from endResult in endConversationAsync(s => { }, _commandFactory, c => Task.FromResult(1), Guid.Empty).Result
                 select endResult,
                 u => Right<Exception, Unit>(u),
                 err => err);
