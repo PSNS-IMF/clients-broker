@@ -162,7 +162,7 @@ namespace Broker.UnitTests
             _mockParams.Setup(p => p.Add(It.IsAny<object>())).Callback((object obj) =>
             {
                 var param = obj as SqlParameter;
-                if(param.SqlDbType == SqlDbType.NVarChar)
+                if(param.SqlDbType == SqlDbType.NVarChar && (param.Value == null || string.IsNullOrEmpty(param.Value.ToString())))
                     param.Value = "string";
                 else if(param.SqlDbType == SqlDbType.UniqueIdentifier)
                     param.Value = Guid.Empty;
@@ -206,6 +206,55 @@ namespace Broker.UnitTests
         }
 
         [Test]
+        public async Task BeginConversationOk_ReturnsGuid()
+        {
+            var guid = Guid.NewGuid();
+
+            _mockParams.Setup(p => p.Add(It.IsAny<object>())).Callback((object obj) =>
+            {
+                var param = obj as SqlParameter;
+                if(param.ParameterName == "@conversation")
+                    param.Value = guid;
+
+                _addedParams.Add(param);
+            });
+
+            var result = await matchAsync(
+                beginConversationAsync(s => { }, _commandFactory, c => Task.FromResult(1), "from", "to", "contract"),
+                right: val => Right<Exception, Guid>(val),
+                left: err => err);
+
+            Expect(match(result, g => g.ToString(), err => "error"), EqualTo(guid.ToString()));
+
+            _mockCommand.VerifySet(c => c.CommandText = "BEGIN DIALOG CONVERSATION @conversation" +
+                                    "FROM SERVICE @fromService" +
+                                    "TO SERVICE '@toService'" +
+                                    "ON CONTRACT @contract" +
+                                    "WITH ENCRYPTION = OFF; ", Times.Once());
+
+            iter(
+                new[] { Tuple("@conversation", guid.ToString()), Tuple("@fromService", "from"), Tuple("@toService", "to"), Tuple("@contract", "contract") },
+                msgConv => Expect(
+                    exists(
+                        _addedParams,
+                        param => param.ParameterName == msgConv.Item1 && param.Value.ToString() == msgConv.Item2),
+                    Is.True));
+
+            Expect(_addedParams.Find(param => param.ParameterName == "@conversation").Direction, EqualTo(ParameterDirection.Output));
+        }
+
+        [Test]
+        public async Task BeginConversationQueryThrows_ReturnsError()
+        {
+            var result = await matchAsync(
+                beginConversationAsync(s => { }, _commandFactory, c => failwith<Task<int>>("error"), "from", "to", "contract"),
+                right: val => Right<Exception, Guid>(val),
+                left: err => err);
+
+            Expect(match(result, u => string.Empty, error => error.Message), Does.Contain("error"));
+        }
+
+        [Test]
         public async Task SendAsyncQueryOk_ReturnsUnit()
         {
             var unit = await matchAsync(
@@ -215,12 +264,15 @@ namespace Broker.UnitTests
 
             Expect(unit.IsRight, Is.True);
 
-            _mockCommand.VerifySet(c => c.CommandText = "SEND ON CONVERSATION @conversation MESSAGE TYPE [type] (@message)", Times.Once());
+            _mockCommand.VerifySet(c => c.CommandText = "SEND ON CONVERSATION @conversation MESSAGE TYPE [@messageType] (@message)", Times.Once());
 
-            iter(new[] { Tuple("@message", "string"), Tuple("@conversation", Guid.Empty.ToString()) }, msgConv =>
-            {
-                Expect(exists(_addedParams, param => param.ParameterName == msgConv.Item1 && param.Value.ToString() == msgConv.Item2), Is.True);
-            });
+            iter(
+                new[] { Tuple("@message", "string"), Tuple("@messageType", "type"), Tuple("@conversation", Guid.Empty.ToString()) },
+                msgConv => Expect(
+                    exists(
+                        _addedParams, 
+                        param => param.ParameterName == msgConv.Item1 && param.Value.ToString() == msgConv.Item2), 
+                    Is.True));
         }
 
         [Test]
@@ -249,12 +301,14 @@ namespace Broker.UnitTests
                 "@message = message_body, " +
                 "@conversationGroup = conversation_group_id, " +
                 "@conversation = conversation_handle " +
-                "FROM [queue]), TIMEOUT 5000;", Times.Once());
+                "FROM [@queueName]), TIMEOUT 5000;", Times.Once());
 
-            iter(new[] { "@messageType", "@message", "@conversationGroup", "@conversation" }, name =>
+            iter(new[] { "@messageType", "@message", "@conversationGroup", "@conversation", "@queueName" }, name =>
             {
                 Expect(exists(_addedParams, param => param.ParameterName == name), Is.True);
             });
+
+            Expect(_addedParams.Find(param => param.ParameterName == "@queueName").Value.ToString(), EqualTo("queue"));
         }
 
         [Test]
@@ -280,9 +334,9 @@ namespace Broker.UnitTests
                 "@message = message_body, " +
                 "@conversationGroup = conversation_group_id, " +
                 "@conversation = conversation_handle " +
-                "FROM [queue]), TIMEOUT 5000;", Times.Once());
+                "FROM [@queueName]), TIMEOUT 5000;", Times.Once());
 
-            iter(new[] { "@messageType", "@message", "@conversationGroup", "@conversation" }, name =>
+            iter(new[] { "@messageType", "@message", "@conversationGroup", "@conversation", "@queueName" }, name =>
             {
                 Expect(exists(_addedParams, param => param.ParameterName == name), Is.True);
             });

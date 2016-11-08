@@ -29,12 +29,70 @@ namespace Psns.Common.Clients.Broker
                     select trans.CreateCommandFactory();
 
         public static readonly Func<
+           Action<string>,
+           Either<Exception, Func<Either<Exception, IDbCommand>>>,
+           Func<IDbCommand, Task<int>>,
+           string,
+           string,
+           string,
+           Task<Either<Exception, Guid>>> beginConversationAsync = 
+            (log, commandFactory, query, fromService, toService, contract) =>
+            {
+                var conversationParameter = new SqlParameter("@conversation", SqlDbType.UniqueIdentifier);
+                conversationParameter.Direction = ParameterDirection.Output;
+
+                var fromServiceParameter = new SqlParameter("@fromService", SqlDbType.NVarChar, fromService.Length);
+                fromServiceParameter.Value = fromService;
+
+                var toServiceParameter = new SqlParameter("@toService", SqlDbType.NVarChar, toService.Length);
+                toServiceParameter.Value = toService;
+
+                var contractParameter = new SqlParameter("@contract", SqlDbType.NVarChar, contract.Length);
+                contractParameter.Value = contract;
+
+                var parameters = new[] { conversationParameter, fromServiceParameter, toServiceParameter, contractParameter };
+
+                return matchAsync(
+                    from factory in commandFactory
+                    from command in factory()
+                    select command,
+                    right: command =>
+                        use(
+                            command,
+                            async cmd =>
+                            {
+                                iter(parameters, param => cmd.Parameters.Add(param));
+
+                                cmd.CommandText = "BEGIN DIALOG CONVERSATION @conversation" +
+                                    "FROM SERVICE @fromService" +
+                                    "TO SERVICE '@toService'" +
+                                    "ON CONTRACT @contract" +
+                                    "WITH ENCRYPTION = OFF; ";
+
+                                logCommand("beginConversationAsync", cmd, log);
+
+                                return await safeAsync(async () =>
+                                {
+                                    await query(cmd);
+
+                                    return conversationParameter.Value is DBNull
+                                        ? Guid.Empty
+                                        : (Guid)conversationParameter.Value;
+                                });
+                            }),
+                    left: error => error);
+            };
+
+        public static readonly Func<
             Action<string>,
             Either<Exception, Func<Either<Exception, IDbCommand>>>,
             Func<IDbCommand, Task<int>>,
             string,
             Task<Either<Exception, BrokerMessage>>> receiveAsync = (log, commandFactory, query, queueName) =>
             {
+                var queueNameParameter = new SqlParameter("@queueName", SqlDbType.NVarChar, queueName.Length);
+                queueNameParameter.Value = queueName;
+
                 var parameters = new[]
                 {
                     new SqlParameter("@messageType", SqlDbType.NVarChar, 256),
@@ -52,6 +110,8 @@ namespace Psns.Common.Clients.Broker
                             command,
                             async cmd =>
                             {
+                                cmd.Parameters.Add(queueNameParameter);
+
                                 iter(parameters, parameter =>
                                 {
                                     parameter.Direction = ParameterDirection.Output;
@@ -63,7 +123,7 @@ namespace Psns.Common.Clients.Broker
                                     "@message = message_body, " +
                                     "@conversationGroup = conversation_group_id, " +
                                     "@conversation = conversation_handle " +
-                                    $"FROM [{queueName}]), TIMEOUT 5000;";
+                                    "FROM [@queueName]), TIMEOUT 5000;";
 
                                 logCommand("receiveAsync", cmd, log);
 
@@ -95,10 +155,13 @@ namespace Psns.Common.Clients.Broker
             {
                 var messageParameter = new SqlParameter("@message", SqlDbType.NVarChar, message.Message.Length);
                 messageParameter.Value = message.Message;
+                var messageTypeParameter = new SqlParameter("@messageType", SqlDbType.NVarChar, message.MessageType.Length);
+                messageTypeParameter.Value = message.MessageType;
 
                 var parameters = new[]
                 {
                     messageParameter,
+                    messageTypeParameter,
                     new SqlParameter("@conversation", message.Conversation)
                 };
 
@@ -113,7 +176,7 @@ namespace Psns.Common.Clients.Broker
                             {
                                 iter(parameters, parameter => cmd.Parameters.Add(parameter));
 
-                                cmd.CommandText = "SEND ON CONVERSATION @conversation MESSAGE TYPE [" + message.MessageType + "] (@message)";
+                                cmd.CommandText = "SEND ON CONVERSATION @conversation MESSAGE TYPE [@messageType] (@message)";
 
                                 logCommand("sendAsync", cmd, log);
 
@@ -200,6 +263,22 @@ namespace Psns.Common.Clients.Broker
                 return await Task.FromResult(e);
             }
         }
+
+        [Pure]
+        public static Func<T, Option<R>> always<T, R>(T value, Action<T> map) =>
+            (T input) => { map(input); return None; };
+
+        [Pure]
+        public static Either<L, R> Join<L, R>(this Either<L, R> self, Either<L, R> other) =>
+            self.Join(other, o => o, i => i, (o, i) => i);
+
+        [Pure]
+        public static Either<L, R> Join<L, R, U>(this Either<L, R> self, Either<U, R> other, Func<U, L> project) =>
+            self.Join(
+                match(
+                    other,
+                    Right: r => Right<L, R>(r),
+                    Left: u => project(u)));
 
         [Pure]
         public static Unit dispose(IDisposable d)
