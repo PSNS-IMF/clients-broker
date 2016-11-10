@@ -63,11 +63,11 @@ namespace Psns.Common.Clients.Broker
                             {
                                 iter(parameters, param => cmd.Parameters.Add(param));
 
-                                cmd.CommandText = "BEGIN DIALOG CONVERSATION @conversation" +
-                                    "FROM SERVICE @fromService" +
-                                    "TO SERVICE '@toService'" +
-                                    "ON CONTRACT @contract" +
-                                    "WITH ENCRYPTION = OFF; ";
+                                cmd.CommandText = "BEGIN DIALOG CONVERSATION @conversation " +
+                                    "FROM SERVICE @fromService " +
+                                    "TO SERVICE @toService " +
+                                    "ON CONTRACT @contract " +
+                                    "WITH ENCRYPTION = OFF;";
 
                                 logCommand("beginConversationAsync", cmd, log);
 
@@ -176,7 +176,7 @@ namespace Psns.Common.Clients.Broker
                             {
                                 iter(parameters, parameter => cmd.Parameters.Add(parameter));
 
-                                cmd.CommandText = "SEND ON CONVERSATION @conversation MESSAGE TYPE [@messageType] (@message)";
+                                cmd.CommandText = "SEND ON CONVERSATION @conversation MESSAGE TYPE @messageType (@message)";
 
                                 logCommand("sendAsync", cmd, log);
 

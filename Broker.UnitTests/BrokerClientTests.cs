@@ -226,11 +226,11 @@ namespace Broker.UnitTests
 
             Expect(match(result, g => g.ToString(), err => "error"), EqualTo(guid.ToString()));
 
-            _mockCommand.VerifySet(c => c.CommandText = "BEGIN DIALOG CONVERSATION @conversation" +
-                                    "FROM SERVICE @fromService" +
-                                    "TO SERVICE '@toService'" +
-                                    "ON CONTRACT @contract" +
-                                    "WITH ENCRYPTION = OFF; ", Times.Once());
+            _mockCommand.VerifySet(c => c.CommandText = "BEGIN DIALOG CONVERSATION @conversation " +
+                                    "FROM SERVICE @fromService " +
+                                    "TO SERVICE @toService " +
+                                    "ON CONTRACT @contract " +
+                                    "WITH ENCRYPTION = OFF;", Times.Once());
 
             iter(
                 new[] { Tuple("@conversation", guid.ToString()), Tuple("@fromService", "from"), Tuple("@toService", "to"), Tuple("@contract", "contract") },
@@ -264,7 +264,7 @@ namespace Broker.UnitTests
 
             Expect(unit.IsRight, Is.True);
 
-            _mockCommand.VerifySet(c => c.CommandText = "SEND ON CONVERSATION @conversation MESSAGE TYPE [@messageType] (@message)", Times.Once());
+            _mockCommand.VerifySet(c => c.CommandText = "SEND ON CONVERSATION @conversation MESSAGE TYPE @messageType (@message)", Times.Once());
 
             iter(
                 new[] { Tuple("@message", "string"), Tuple("@messageType", "type"), Tuple("@conversation", Guid.Empty.ToString()) },
