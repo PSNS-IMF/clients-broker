@@ -179,6 +179,7 @@ namespace Psns.Common.Clients.Broker
                                 cmd.CommandText = "SEND ON CONVERSATION @conversation MESSAGE TYPE @messageType (@message)";
 
                                 logCommand("sendAsync", cmd, log);
+                                log($"sendAsync -> message: {message.ToString()}");
 
                                 return await safeAsync(async () => { await query(cmd); return Unit.Default; });
                             }),
