@@ -93,7 +93,7 @@ namespace Psns.Common.Clients.Broker
                 var parameters = new[]
                 {
                     new SqlParameter("@messageType", SqlDbType.NVarChar, 256),
-                    new SqlParameter("@message", SqlDbType.NVarChar, 4000),
+                    new SqlParameter("@message", SqlDbType.NVarChar, -1),
                     new SqlParameter("@conversationGroup", SqlDbType.UniqueIdentifier),
                     new SqlParameter("@conversation", SqlDbType.UniqueIdentifier)
                 };

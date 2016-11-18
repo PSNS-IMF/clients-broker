@@ -257,6 +257,12 @@ namespace Broker.UnitTests
         [Test]
         public async Task SendAsyncQueryOk_ReturnsUnit()
         {
+            _mockParams.Setup(p => p.Add(It.IsAny<object>())).Callback((object obj) =>
+            {
+                var param = obj as SqlParameter;
+                _addedParams.Add(param);
+            });
+
             var unit = await matchAsync(
                 sendAsync(s => { }, _commandFactory, c => Task.FromResult(1), new BrokerMessage("type", "string", Guid.Empty, Guid.Empty)),
                 right: val => Right<Exception, Unit>(val),
@@ -273,6 +279,10 @@ namespace Broker.UnitTests
                         _addedParams, 
                         param => param.ParameterName == msgConv.Item1 && param.Value.ToString() == msgConv.Item2), 
                     Is.True));
+
+            Expect(
+                exists(_addedParams, param => param.Size == 6 && param.SqlDbType == SqlDbType.NVarChar), 
+                Is.True);
         }
 
         [Test]
