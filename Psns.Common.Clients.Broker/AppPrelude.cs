@@ -123,7 +123,7 @@ namespace Psns.Common.Clients.Broker
                                     "@message = message_body, " +
                                     "@conversationGroup = conversation_group_id, " +
                                     "@conversation = conversation_handle " +
-                                    "FROM [@queueName]), TIMEOUT 5000;";
+                                    "FROM @queueName), TIMEOUT 5000;";
 
                                 logCommand("receiveAsync", cmd, log);
 

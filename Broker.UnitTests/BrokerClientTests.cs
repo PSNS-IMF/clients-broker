@@ -301,7 +301,7 @@ namespace Broker.UnitTests
                 "@message = message_body, " +
                 "@conversationGroup = conversation_group_id, " +
                 "@conversation = conversation_handle " +
-                "FROM [@queueName]), TIMEOUT 5000;", Times.Once());
+                "FROM @queueName), TIMEOUT 5000;", Times.Once());
 
             iter(new[] { "@messageType", "@message", "@conversationGroup", "@conversation", "@queueName" }, name =>
             {
@@ -334,7 +334,7 @@ namespace Broker.UnitTests
                 "@message = message_body, " +
                 "@conversationGroup = conversation_group_id, " +
                 "@conversation = conversation_handle " +
-                "FROM [@queueName]), TIMEOUT 5000;", Times.Once());
+                "FROM @queueName), TIMEOUT 5000;", Times.Once());
 
             iter(new[] { "@messageType", "@message", "@conversationGroup", "@conversation", "@queueName" }, name =>
             {
