@@ -90,9 +90,6 @@ namespace Psns.Common.Clients.Broker
             string,
             Task<Either<Exception, BrokerMessage>>> receiveAsync = (log, commandFactory, query, queueName) =>
             {
-                var queueNameParameter = new SqlParameter("@queueName", SqlDbType.NVarChar, queueName.Length);
-                queueNameParameter.Value = queueName;
-
                 var parameters = new[]
                 {
                     new SqlParameter("@messageType", SqlDbType.NVarChar, 256),
@@ -110,8 +107,6 @@ namespace Psns.Common.Clients.Broker
                             command,
                             async cmd =>
                             {
-                                cmd.Parameters.Add(queueNameParameter);
-
                                 iter(parameters, parameter =>
                                 {
                                     parameter.Direction = ParameterDirection.Output;
@@ -123,7 +118,7 @@ namespace Psns.Common.Clients.Broker
                                     "@message = message_body, " +
                                     "@conversationGroup = conversation_group_id, " +
                                     "@conversation = conversation_handle " +
-                                    "FROM @queueName), TIMEOUT 5000;";
+                                    $"FROM [{ queueName }]), TIMEOUT 5000;";
 
                                 logCommand("receiveAsync", cmd, log);
 

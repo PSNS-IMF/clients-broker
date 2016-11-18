@@ -301,14 +301,12 @@ namespace Broker.UnitTests
                 "@message = message_body, " +
                 "@conversationGroup = conversation_group_id, " +
                 "@conversation = conversation_handle " +
-                "FROM @queueName), TIMEOUT 5000;", Times.Once());
+                "FROM [queue]), TIMEOUT 5000;", Times.Once());
 
-            iter(new[] { "@messageType", "@message", "@conversationGroup", "@conversation", "@queueName" }, name =>
+            iter(new[] { "@messageType", "@message", "@conversationGroup", "@conversation" }, name =>
             {
                 Expect(exists(_addedParams, param => param.ParameterName == name), Is.True);
             });
-
-            Expect(_addedParams.Find(param => param.ParameterName == "@queueName").Value.ToString(), EqualTo("queue"));
         }
 
         [Test]
@@ -334,9 +332,9 @@ namespace Broker.UnitTests
                 "@message = message_body, " +
                 "@conversationGroup = conversation_group_id, " +
                 "@conversation = conversation_handle " +
-                "FROM @queueName), TIMEOUT 5000;", Times.Once());
+                "FROM [queue]), TIMEOUT 5000;", Times.Once());
 
-            iter(new[] { "@messageType", "@message", "@conversationGroup", "@conversation", "@queueName" }, name =>
+            iter(new[] { "@messageType", "@message", "@conversationGroup", "@conversation" }, name =>
             {
                 Expect(exists(_addedParams, param => param.ParameterName == name), Is.True);
             });
