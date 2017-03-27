@@ -264,7 +264,7 @@ namespace Broker.UnitTests
             });
 
             var unit = await matchAsync(
-                sendAsync(s => { }, _commandFactory, c => Task.FromResult(1), new BrokerMessage("type", "string", Guid.Empty, Guid.Empty)),
+                sendAsync(s => { }, _commandFactory, c => Task.FromResult(1), new BrokerMessage("contract", "type", "string", Guid.Empty, Guid.Empty)),
                 right: val => Right<Exception, Unit>(val),
                 left: err => err);
 
@@ -304,16 +304,17 @@ namespace Broker.UnitTests
                 right: val => Right<Exception, BrokerMessage>(val),
                 left: err => err);
 
-            Expect(message, EqualTo(new BrokerMessage("string", "string", Guid.Empty, Guid.Empty)));
+            Expect(message, EqualTo(new BrokerMessage("contract", "string", "string", Guid.Empty, Guid.Empty)));
 
             _mockCommand.VerifySet(c => c.CommandText = "WAITFOR (RECEIVE TOP(1) " +
+                "@contract = service_contract_name, " +
                 "@messageType = message_type_name, " +
                 "@message = message_body, " +
                 "@conversationGroup = conversation_group_id, " +
                 "@conversation = conversation_handle " +
                 "FROM [queue]), TIMEOUT 5000;", Times.Once());
 
-            iter(new[] { "@messageType", "@message", "@conversationGroup", "@conversation" }, name =>
+            iter(new[] { "@contract", "@messageType", "@message", "@conversationGroup", "@conversation" }, name =>
             {
                 Expect(exists(_addedParams, param => param.ParameterName == name), Is.True);
             });
@@ -338,6 +339,7 @@ namespace Broker.UnitTests
             Expect(message, EqualTo(BrokerMessage.Empty));
 
             _mockCommand.VerifySet(c => c.CommandText = "WAITFOR (RECEIVE TOP(1) " +
+                "@contract = service_contract_name, " +
                 "@messageType = message_type_name, " +
                 "@message = message_body, " +
                 "@conversationGroup = conversation_group_id, " +

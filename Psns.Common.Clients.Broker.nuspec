@@ -10,6 +10,10 @@
     <projectUrl>https://github.com/PSNS-IMF/clients-broker</projectUrl>
     <licenseUrl>https://github.com/PSNS-IMF/clients-broker/blob/master/LICENSE.md</licenseUrl>
     <releaseNotes>
+      ## 1.0.0.1
+      ### Features
+      * Including Broker Contract name with returned Broker Message
+
       ## 1.0.0.0
       ### Features
       * Initial release

@@ -92,6 +92,7 @@ namespace Psns.Common.Clients.Broker
             {
                 var parameters = new[]
                 {
+                    new SqlParameter("@contract", SqlDbType.NVarChar, 128),
                     new SqlParameter("@messageType", SqlDbType.NVarChar, 256),
                     new SqlParameter("@message", SqlDbType.NVarChar, -1),
                     new SqlParameter("@conversationGroup", SqlDbType.UniqueIdentifier),
@@ -114,6 +115,7 @@ namespace Psns.Common.Clients.Broker
                                 });
 
                                 cmd.CommandText = "WAITFOR (RECEIVE TOP(1) " +
+                                    "@contract = service_contract_name, " +
                                     "@messageType = message_type_name, " +
                                     "@message = message_body, " +
                                     "@conversationGroup = conversation_group_id, " +
@@ -131,8 +133,9 @@ namespace Psns.Common.Clients.Broker
                                         return new BrokerMessage(
                                             (string)parameters[0].Value,
                                             (string)parameters[1].Value,
-                                            (Guid)parameters[2].Value,
-                                            (Guid)parameters[3].Value);
+                                            (string)parameters[2].Value,
+                                            (Guid)parameters[3].Value,
+                                            (Guid)parameters[4].Value);
                                     }
                                     else
                                         return BrokerMessage.Empty;
