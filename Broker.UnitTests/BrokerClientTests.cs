@@ -299,12 +299,28 @@ namespace Broker.UnitTests
         [Test]
         public async Task ReceiveAsync_ShouldExecuteQueryAndReturnNonEmptyMessageWhenMessageHasValue()
         {
+            _mockParams.Setup(p => p.Add(It.IsAny<object>())).Callback((object obj) =>
+            {
+                var param = obj as SqlParameter;
+
+                if(param.ParameterName == "@contract")
+                    param.Value = "contract";
+                else if(param.ParameterName == "@messageType")
+                    param.Value = DBNull.Value;
+                else if(param.SqlDbType == SqlDbType.NVarChar && (param.Value == null || string.IsNullOrEmpty(param.Value.ToString())))
+                    param.Value = "string";
+                else if(param.SqlDbType == SqlDbType.UniqueIdentifier)
+                    param.Value = Guid.Empty;
+
+                _addedParams.Add(param);
+            });
+
             var message = await matchAsync(
                 receiveAsync(s => { }, _commandFactory, cmd => Task.FromResult(1), "queue"),
                 right: val => Right<Exception, BrokerMessage>(val),
                 left: err => err);
 
-            Expect(message, EqualTo(new BrokerMessage("contract", "string", "string", Guid.Empty, Guid.Empty)));
+            Expect(message, EqualTo(new BrokerMessage("contract", string.Empty, "string", Guid.Empty, Guid.Empty)));
 
             _mockCommand.VerifySet(c => c.CommandText = "WAITFOR (RECEIVE TOP(1) " +
                 "@contract = service_contract_name, " +

@@ -130,9 +130,9 @@ namespace Psns.Common.Clients.Broker
                                     if(!(parameters[0].Value is DBNull))
                                     {
                                         return new BrokerMessage(
-                                            (string)parameters[0].Value,
-                                            (string)parameters[1].Value,
-                                            (string)parameters[2].Value,
+                                            parameters[0].Value.ToString(),
+                                            parameters[1].Value.ToString(),
+                                            parameters[2].Value.ToString(),
                                             (Guid)parameters[3].Value,
                                             (Guid)parameters[4].Value);
                                     }
