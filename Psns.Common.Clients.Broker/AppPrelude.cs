@@ -1,226 +1,117 @@
-﻿using System;
+﻿using Psns.Common.Functional;
+using Psns.Common.SystemExtensions;
+using System;
+using System.Collections.Generic;
 using System.Data;
-using System.Data.SqlClient;
+using System.Threading;
 using System.Threading.Tasks;
-using LanguageExt;
-using static LanguageExt.List;
-using static LanguageExt.Prelude;
+using static Psns.Common.Clients.Broker.Constants;
+using static Psns.Common.Clients.Broker.DB;
+using static Psns.Common.Functional.Prelude;
 
 namespace Psns.Common.Clients.Broker
 {
+    /// <summary>
+    /// A function that retreives a BrokerMessage from a ServiceBroker queue.
+    /// </summary>
+    /// <param name="queueName"></param>
+    /// <returns></returns>
+    public delegate TryAsync<BrokerMessage> GetMessage(string queueName);
+
+    /// <summary>
+    /// A function that ends a Service Broker Conversation.
+    /// </summary>
+    /// <param name="conversationId"></param>
+    /// <returns></returns>
+    public delegate TryAsync<UnitValue> EndDialog(Guid conversationId);
+
+    /// <summary>
+    /// Creates a function that evaluates and processes BrokerMessages.
+    /// </summary>
+    /// <returns></returns>
+    public delegate Func<IEnumerable<IObserver<BrokerMessage>>, BrokerMessage, TryAsync<UnitValue>> ProcessMessageAsync();
+
     public static partial class AppPrelude
     {
-        public static readonly Func<IDbConnection, Either<Exception, OpenConnection>> openConnection = connection =>
-            safe(() =>
-            {
-                connection.Open();
-                return new OpenConnection(connection);
-            });
+        /// <summary>
+        /// Gets a message from a Service Broker Queue.
+        /// </summary>
+        /// <returns></returns>
+        public static Func<Maybe<Log>, Func<IDbConnection>, OpenAsync, ExecuteNonQueryAsync, string, TryAsync<BrokerMessage>> GetMessageFactory() => 
+            (log, connectionFactory, openAsync, exeAsync, queueName) =>
+                CommandFactory<BrokerMessage>()(
+                    log,
+                    connectionFactory,
+                    openAsync,
+                    SetupReceive().Par(queueName.AssertValue()),
+                    RunReceiveCommandFactory().Par(exeAsync));
 
-        public static readonly Func<Either<Exception, OpenConnection>, Either<Exception, Transaction>> beginTransaction = connection =>
-            from conn in connection
-            from trans in conn.BeginTransaction()
-            select new Transaction(trans);
+        /// <summary>
+        /// End a Service Broker dialog.
+        /// </summary>
+        /// <returns></returns>
+        public static Func<Maybe<Log>, Func<IDbConnection>, OpenAsync, ExecuteNonQueryAsync, Guid, TryAsync<UnitValue>> EndDialogFactory() =>
+            (log, connectionFactory, openAsync, exeAsync, conversationId) =>
+                CommandFactory<UnitValue>()(
+                    log,
+                    connectionFactory,
+                    openAsync,
+                    SetupEndDialog().Par(conversationId.AssertValue()),
+                    async cmd => { await exeAsync(cmd); return Unit; });
 
-        public static readonly Func<Either<Exception, Transaction>, Either<Exception, Func<Either<Exception, IDbCommand>>>> createCommandFactory =
-            transaction =>
-                    from trans in transaction
-                    select trans.CreateCommandFactory();
+        /// <summary>
+        /// When message type is Service Broker Error, calls Observer.OnError
+        /// Else when message type is Service Broker End Dialog, calls EndDialog
+        /// Else call Observer.OnNext for all other message types.
+        /// </summary>
+        /// <returns></returns>
+        public static Func<
+            Maybe<Log>, 
+            CancellationToken, 
+            EndDialog, 
+            IEnumerable<IObserver<BrokerMessage>>, 
+            BrokerMessage, 
+            TryAsync<UnitValue>> ProcessMessageAsyncFactory() =>
+            (logger, cancelToken, endDialog, observers, message) => () =>
+                Match(
+                    message == BrokerMessage.Empty,
+                    NotEqual(true, _ =>
+                        logger.Debug(
+                            endDialog(message.Conversation).Regardless(
+                                Match(
+                                    logger.Debug(message.MessageType, $"Received {message}"),
+                                    // error message
+                                    AsEqual(ServiceBrokerErrorMessageType, __ => logger.Debug(observers, "Calling Observers OnError")
+                                        .TryIterAsync(observer =>
+                                            observer.SendError(new Exception(message.Message), logger), cancelToken)),
+                                    // end dialog message
+                                    AsEqual(ServiceBrokerEndDialogMessageType, __ => TryAsync(() => Task.FromResult(Unit))),
+                                    // give the rest to the observers
+                                    __ => logger.Debug(observers, "Calling Observers OnNext")
+                                        .TryIterAsync(observer => 
+                                            observer.SendNext(message, logger), cancelToken))).TryAsync(), 
+                            "Ending Dialog")),
+                    _ => Some(TryAsync(() => Task.FromResult(Unit)).TryAsync()));
 
-        public static readonly Func<
-           Action<string>,
-           Either<Exception, Func<Either<Exception, IDbCommand>>>,
-           Func<IDbCommand, Task<int>>,
-           string,
-           string,
-           string,
-           Task<Either<Exception, Guid>>> beginConversationAsync = 
-            (log, commandFactory, query, fromService, toService, contract) =>
-            {
-                var conversationParameter = new SqlParameter("@conversation", SqlDbType.UniqueIdentifier);
-                conversationParameter.Direction = ParameterDirection.Output;
+        /// <summary>
+        /// Adds error handling to IObserver.OnNext
+        /// </summary>
+        /// <param name="self"></param>
+        /// <param name="next"></param>
+        /// <param name="logger"></param>
+        /// <returns></returns>
+        public static UnitValue SendNext(this IObserver<BrokerMessage> self, BrokerMessage next, Maybe<Log> logger) =>
+            Try(() => self.OnNext(next)).Match(_ => _, e => self.SendError(e, logger));
 
-                var fromServiceParameter = new SqlParameter("@fromService", SqlDbType.NVarChar, fromService.Length);
-                fromServiceParameter.Value = fromService;
-
-                var toServiceParameter = new SqlParameter("@toService", SqlDbType.NVarChar, toService.Length);
-                toServiceParameter.Value = toService;
-
-                var contractParameter = new SqlParameter("@contract", SqlDbType.NVarChar, contract.Length);
-                contractParameter.Value = contract;
-
-                var parameters = new[] { conversationParameter, fromServiceParameter, toServiceParameter, contractParameter };
-
-                return matchAsync(
-                    from factory in commandFactory
-                    from command in factory()
-                    select command,
-                    right: command =>
-                        use(
-                            command,
-                            async cmd =>
-                            {
-                                iter(parameters, param => cmd.Parameters.Add(param));
-
-                                cmd.CommandText = "BEGIN DIALOG CONVERSATION @conversation " +
-                                    "FROM SERVICE @fromService " +
-                                    "TO SERVICE @toService " +
-                                    "ON CONTRACT @contract " +
-                                    "WITH ENCRYPTION = OFF;";
-
-                                logCommand("beginConversationAsync", cmd, log);
-
-                                return await safeAsync(async () =>
-                                {
-                                    await query(cmd);
-
-                                    return conversationParameter.Value is DBNull
-                                        ? Guid.Empty
-                                        : (Guid)conversationParameter.Value;
-                                });
-                            }),
-                    left: error => error);
-            };
-
-        public static readonly Func<
-            Action<string>,
-            Either<Exception, Func<Either<Exception, IDbCommand>>>,
-            Func<IDbCommand, Task<int>>,
-            string,
-            Task<Either<Exception, BrokerMessage>>> receiveAsync = (log, commandFactory, query, queueName) =>
-            {
-                var parameters = new[]
-                {
-                    new SqlParameter("@contract", SqlDbType.NVarChar, 128),
-                    new SqlParameter("@messageType", SqlDbType.NVarChar, 256),
-                    new SqlParameter("@message", SqlDbType.NVarChar, -1),
-                    new SqlParameter("@conversationGroup", SqlDbType.UniqueIdentifier),
-                    new SqlParameter("@conversation", SqlDbType.UniqueIdentifier)
-                };
-
-                return matchAsync(
-                    from factory in commandFactory
-                    from command in factory()
-                    select command,
-                    right: command =>
-                        use(
-                            command,
-                            async cmd =>
-                            {
-                                iter(parameters, parameter =>
-                                {
-                                    parameter.Direction = ParameterDirection.Output;
-                                    cmd.Parameters.Add(parameter);
-                                });
-
-                                cmd.CommandText = "WAITFOR (RECEIVE TOP(1) " +
-                                    "@contract = service_contract_name, " +
-                                    "@messageType = message_type_name, " +
-                                    "@message = message_body, " +
-                                    "@conversationGroup = conversation_group_id, " +
-                                    "@conversation = conversation_handle " +
-                                    $"FROM [{ queueName }]), TIMEOUT 5000;";
-
-                                logCommand("receiveAsync", cmd, log);
-
-                                return await safeAsync(async () =>
-                                {
-                                    await query(cmd);
-
-                                    if(!(parameters[0].Value is DBNull))
-                                    {
-                                        return new BrokerMessage(
-                                            parameters[0].Value.ToString(),
-                                            parameters[1].Value.ToString(),
-                                            parameters[2].Value.ToString(),
-                                            (Guid)parameters[3].Value,
-                                            (Guid)parameters[4].Value);
-                                    }
-                                    else
-                                        return BrokerMessage.Empty;
-                                });
-                            }),
-                    left: error => error);
-            };
-
-        public static readonly Func<
-            Action<string>,
-            Either<Exception, Func<Either<Exception, IDbCommand>>>,
-            Func<IDbCommand, Task<int>>,
-            BrokerMessage,
-            Task<Either<Exception, Unit>>> sendAsync = (log, commandFactory, query, message) =>
-            {
-                var messageParameter = new SqlParameter("@message", SqlDbType.NVarChar, message.Message.Length);
-                messageParameter.Value = message.Message;
-                var messageTypeParameter = new SqlParameter("@messageType", SqlDbType.NVarChar, message.MessageType.Length);
-                messageTypeParameter.Value = message.MessageType;
-
-                var parameters = new[]
-                {
-                    messageParameter,
-                    messageTypeParameter,
-                    new SqlParameter("@conversation", message.Conversation)
-                };
-
-                return matchAsync(
-                    from factory in commandFactory
-                    from command in factory()
-                    select command,
-                    right: command =>
-                        use(
-                            command,
-                            async cmd =>
-                            {
-                                iter(parameters, parameter => cmd.Parameters.Add(parameter));
-
-                                cmd.CommandText = "SEND ON CONVERSATION @conversation MESSAGE TYPE @messageType (@message)";
-
-                                logCommand("sendAsync", cmd, log);
-                                log($"sendAsync -> message: {message.ToString()}");
-
-                                return await safeAsync(async () => { await query(cmd); return Unit.Default; });
-                            }),
-                    left: error => error);
-            };
-
-        public static readonly Func<
-            Action<string>,
-            Either<Exception, Func<Either<Exception, IDbCommand>>>,
-            Func<IDbCommand, Task<int>>,
-            Guid,
-            Task<Either<Exception, Unit>>> endConversationAsync = (log, commandFactory, query, conversation) =>
-            {
-                var parameters = new[]
-                {
-                    new SqlParameter("@conversation", conversation)
-                };
-
-                return matchAsync(
-                    from factory in commandFactory
-                    from command in factory()
-                    select command,
-                    right: command =>
-                        use(
-                            command,
-                            async cmd =>
-                            {
-                                iter(parameters, parameter => cmd.Parameters.Add(parameter));
-
-                                cmd.CommandText = "END CONVERSATION @conversation";
-
-                                logCommand("endConversationAsync", cmd, log);
-
-                                return await safeAsync(async () => { await query(cmd); return Unit.Default; });
-                            }),
-                    left: error => error);
-            };
-
-        static Unit logCommand(Some<string> callerName, IDbCommand command, Action<string> log)
-        {
-            log($@"{callerName} -> Param Count: {command?.Parameters?.Count.ToString() ?? "Null"} Connection State: {
-                command?.Connection?.State.ToString() ?? "Null"} Transaction Isolation Leve: {
-                command?.Transaction?.IsolationLevel.ToString() ?? "Null"}");
-            return Unit.Default;
-        }
+        /// <summary>
+        /// Adds error handling to IObserver.OnError
+        /// </summary>
+        /// <param name="self"></param>
+        /// <param name="exception"></param>
+        /// <param name="logger"></param>
+        /// <returns></returns>
+        public static UnitValue SendError(this IObserver<BrokerMessage> self, Exception exception, Maybe<Log> logger) =>
+            Try(() => self.OnError(exception)).Match(_ => _, 
+                e => logger.Error<UnitValue>(new AggregateException(exception, e).GetExceptionChainMessagesWithSql()));
     }
 }

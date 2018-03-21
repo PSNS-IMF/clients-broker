@@ -12,10 +12,10 @@
                 It is considered an error to exclude all items from instrumentation as no data would be collected.-->
               <Include>
                 <!--<ModulePath>.*\\UnitTestProject1\.dll</ModulePath>-->
+                <ModulePath>.*\\Psns.Common.Clients.Broker\.dll</ModulePath>
               </Include>
               <Exclude>
                 <!--<ModulePath>.*CPPUnitTestFramework.*</ModulePath>-->
-                <ModulePath>.*UnitTests.*</ModulePath>
               </Exclude>
             </ModulePaths>
             <UseVerifiableInstrumentation>True</UseVerifiableInstrumentation>

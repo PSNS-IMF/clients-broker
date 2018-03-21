@@ -1,11 +1,12 @@
-﻿using System;
-using NUnit.Framework;
+﻿using NUnit.Framework;
 using Psns.Common.Clients.Broker;
+using System;
+using static NUnit.StaticExpect.Expectations;
 
 namespace Broker.UnitTests
 {
     [TestFixture]
-    public class BrokerMessageTests : AssertionHelper
+    public class BrokerMessageTests
     {
         [Test]
         public void Constructor_MessageAsNull_MessageSetToEmptyString()

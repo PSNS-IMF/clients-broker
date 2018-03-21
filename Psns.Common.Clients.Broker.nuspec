@@ -10,6 +10,10 @@
     <projectUrl>https://github.com/PSNS-IMF/clients-broker</projectUrl>
     <licenseUrl>https://github.com/PSNS-IMF/clients-broker/blob/master/LICENSE.md</licenseUrl>
     <releaseNotes>
+      ## 2.0.0.0
+      ### Features
+      * Switched to the Observer design pattern; the BrokerClient is an IObservable of BrokerMessage
+
       ## 1.0.0.1
       ### Features
       * Including Broker Contract name with returned Broker Message
@@ -21,8 +25,8 @@
     <version>$version$</version>
     <tags>PSNS SQL Service Broker</tags>
     <dependencies>
-      <dependency id="Psns.Common.SystemExtensions" version="1.0.0.1" />
-      <dependency id="LanguageExt.Core" version="1.9.4" />
+      <dependency id="Psns.Common.SystemExtensions" version="2018.4.3.2" />
+      <dependency id="System.Collections.Immutable" version="1.4.0" />
     </dependencies>
   </metadata>
   <files>

@@ -23,15 +23,6 @@ namespace Psns.Common.Clients.Broker
             Conversation = conversation;
         }
 
-        public BrokerMessage WithMessage(string message) =>
-            new BrokerMessage(Contract, MessageType, message, ConversationGroup, Conversation);
-
-        public BrokerMessage WithType(string messageType) =>
-            new BrokerMessage(Contract, messageType, Message, ConversationGroup, Conversation);
-
-        public BrokerMessage WithContract(string contract) =>
-            new BrokerMessage(contract, MessageType, Message, ConversationGroup, Conversation);
-
         public override string ToString() =>
             $@"Contract: {Contract} Type: {MessageType} Message: {Message} Conversation Group: {
                 ConversationGroup.ToString()} Conversation: {Conversation.ToString()}";
@@ -63,5 +54,17 @@ namespace Psns.Common.Clients.Broker
             MessageType.GetHashCode() ^
             ConversationGroup.GetHashCode() ^
             Conversation.GetHashCode();
+    }
+
+    public static class BrokerMessageExtensions
+    {
+        public static BrokerMessage WithMessage(this BrokerMessage self, string message) =>
+            new BrokerMessage(self.Contract, self.MessageType, message, self.ConversationGroup, self.Conversation);
+
+        public static BrokerMessage WithType(this BrokerMessage self, string messageType) =>
+            new BrokerMessage(self.Contract, messageType, self.Message, self.ConversationGroup, self.Conversation);
+
+        public static BrokerMessage WithContract(this BrokerMessage self, string contract) =>
+            new BrokerMessage(contract, self.MessageType, self.Message, self.ConversationGroup, self.Conversation);
     }
 }
