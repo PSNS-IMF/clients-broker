@@ -1,11 +1,11 @@
 ﻿using Psns.Common.Functional;
 using Psns.Common.SystemExtensions;
+using Psns.Common.SystemExtensions.Diagnostics;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Data;
-using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -15,13 +15,6 @@ using Subscriber = System.IObserver<Psns.Common.Clients.Broker.BrokerMessage>;
 
 namespace Psns.Common.Clients.Broker
 {
-    /// <summary>
-    /// A function that writes a log message.
-    /// </summary>
-    /// <param name="message"></param>
-    /// <param name="eventType">The type of event to log</param>
-    public delegate void Log(string message, TraceEventType eventType);
-    
     /// <summary>
     /// A function that asynchronously opens a DB connection.
     /// </summary>
@@ -37,9 +30,27 @@ namespace Psns.Common.Clients.Broker
     public delegate Task<int> ExecuteNonQueryAsync(IDbCommand command);
 
     /// <summary>
+    /// Defines an <see cref="IObservable{BrokerMessage}" /> derivative.
+    /// </summary>
+    public interface IBrokerClient : IObservable<BrokerMessage>
+    {
+        /// <summary>
+        /// Defines a method that starts receiving messages from a Service Broker queue.
+        /// </summary>
+        /// <param name="queueName"></param>
+        /// <returns><see cref="IRunningBrokerClient"/></returns>
+        IRunningBrokerClient ReceiveMessages(string queueName);
+
+        /// <summary>
+        /// Defines a list of subscribers for incoming messages.
+        /// </summary>
+        IList<Subscriber> Subscribers { get; }
+    }
+
+    /// <summary>
     /// Provides SQL Service Broker operations.
     /// </summary>
-    public class BrokerClient : IObservable<BrokerMessage>
+    public class BrokerClient : IBrokerClient
     {
         #region private properties
         readonly Maybe<Log> _logger;
@@ -172,7 +183,7 @@ namespace Psns.Common.Clients.Broker
         /// <param name="queueName">The queue to listen for messages on</param>
         /// <returns></returns>
         /// <exception cref="System.ArgumentNullException"></exception>
-        public RunningBrokerClient ReceiveMessages(string queueName)
+        public IRunningBrokerClient ReceiveMessages(string queueName)
         {
             _tokenSource = new CancellationTokenSource();
             _cancelToken = _tokenSource.Token;

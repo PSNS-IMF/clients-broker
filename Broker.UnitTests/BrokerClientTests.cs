@@ -2,6 +2,7 @@
 using NUnit.Framework;
 using Psns.Common.Clients.Broker;
 using Psns.Common.SystemExtensions;
+using Psns.Common.SystemExtensions.Diagnostics;
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -11,8 +12,9 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using static NUnit.StaticExpect.Expectations;
-using static Psns.Common.Functional.Prelude;
 using static Psns.Common.Clients.Broker.Constants;
+using static Psns.Common.Functional.Prelude;
+using static Psns.Common.SystemExtensions.Diagnostics.Prelude;
 
 namespace FluentBrokerClients.UnitTests
 {
@@ -412,7 +414,7 @@ namespace FluentBrokerClients.UnitTests
             var mockLogger = new Mock<Log>();
 
             mockLogger
-                .Setup(f => f(It.IsAny<string>(), It.Is<TraceEventType>(t => t == TraceEventType.Error)))
+                .Setup(f => f(It.IsAny<string>(), GeneralLogCategory, It.Is<TraceEventType>(t => t == TraceEventType.Error)))
                 .Callback(() => _wait.Set());
 
             var mocks = CreateMocks();
@@ -441,7 +443,7 @@ namespace FluentBrokerClients.UnitTests
             await running.StopReceiving();
 
             mockObserver.Verify(o => o.OnError(It.Is<Exception>(e => e.Message == FailVal)));
-            mockLogger.Verify(l => l(It.IsRegex($"{FailVal} 2"), TraceEventType.Error));
+            mockLogger.Verify(l => l(It.IsRegex($"{FailVal} 2"), GeneralLogCategory, TraceEventType.Error));
 
             ExpectAll(mocks);
         }

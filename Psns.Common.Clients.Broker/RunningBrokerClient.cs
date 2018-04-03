@@ -1,4 +1,5 @@
 ﻿using Psns.Common.Functional;
+using Psns.Common.SystemExtensions.Diagnostics;
 using System;
 using System.Collections.Concurrent;
 using System.Linq;
@@ -9,9 +10,21 @@ using static Psns.Common.Functional.Prelude;
 namespace Psns.Common.Clients.Broker
 {
     /// <summary>
+    /// Defines a BrokerClient that has started receiving messages.
+    /// </summary>
+    public interface IRunningBrokerClient
+    {
+        /// <summary>
+        /// Defines a method that stops receiving all messages.
+        /// </summary>
+        /// <returns></returns>
+        Task<StopReceivingResult> StopReceiving();
+    }
+
+    /// <summary>
     /// Represents the state of a BrokerClient after it has begun receiving messages.
     /// </summary>
-    public class RunningBrokerClient
+    public class RunningBrokerClient : IRunningBrokerClient
     {
         readonly Maybe<Log> _logger;
         readonly Maybe<IProducerConsumerCollection<IObserver<BrokerMessage>>> _observers;

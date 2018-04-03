@@ -1,5 +1,7 @@
 ﻿using Psns.Common.Functional;
+using Psns.Common.SystemExtensions.Diagnostics;
 using System.Diagnostics;
+using static Psns.Common.SystemExtensions.Diagnostics.Prelude;
 
 namespace Psns.Common.Clients.Broker
 {
@@ -37,7 +39,7 @@ namespace Psns.Common.Clients.Broker
 
         public static T Log<T>(this Maybe<Log> self, T val, TraceEventType type) =>
             self.Match(
-                some: logger => val.Tap(_ => logger(val.ToString(), type)), 
+                some: logger => val.Tap(_ => logger(val.ToString(), GeneralLogCategory, type)), 
                 none: () => val);
     }
 }

@@ -1,5 +1,6 @@
 ﻿using Psns.Common.Functional;
 using Psns.Common.SystemExtensions;
+using Psns.Common.SystemExtensions.Diagnostics;
 using System;
 using System.Collections.Generic;
 using System.Data;
