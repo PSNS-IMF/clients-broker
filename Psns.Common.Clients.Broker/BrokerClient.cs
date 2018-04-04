@@ -63,7 +63,7 @@ namespace Psns.Common.Clients.Broker
         readonly OpenAsync _openAsync;
         readonly ExecuteNonQueryAsync _executeNonQueryAsync;
         readonly GetMessage _getMessage;
-        readonly ProcessMessageAsync _processMessage;
+        readonly Func<CancellationToken, ProcessMessageAsync> _composeProcessMessage;
 
         // worker thread handling
         readonly TaskScheduler _scheduler;
@@ -151,11 +151,12 @@ namespace Psns.Common.Clients.Broker
                 _openAsync,
                 _executeNonQueryAsync));
 
-            _processMessage = new ProcessMessageAsync(() => 
-                ProcessMessageAsyncFactory().Par(
-                    _logger, 
-                    _cancelToken,
-                    endDialog));
+            _composeProcessMessage = fun((CancellationToken token) => 
+                new ProcessMessageAsync(() => 
+                    ProcessMessageAsyncFactory().Par(
+                        _logger, 
+                        token,
+                        endDialog)));
         }
         #endregion
 
@@ -186,7 +187,8 @@ namespace Psns.Common.Clients.Broker
         public IRunningBrokerClient ReceiveMessages(string queueName)
         {
             _tokenSource = new CancellationTokenSource();
-            _cancelToken = _tokenSource.Token;
+            var cancelToken = _tokenSource.Token;
+            _cancelToken = cancelToken;
 
             _receiver = Task.Run(async () =>
             {
@@ -197,7 +199,7 @@ namespace Psns.Common.Clients.Broker
                     // have to await twice because 2 tasks are created in this call chain
                     await await _getMessage(queueName)
                         // inside await
-                        .Bind(_processMessage().Par(_observers))
+                        .Bind(_composeProcessMessage(cancelToken)().Par(_observers))
                         .Match(
                             success: async _ => await Task.FromResult(Unit),
                             fail: async exception =>
@@ -208,14 +210,14 @@ namespace Psns.Common.Clients.Broker
                                             exception, 
                                             $"Calling Observers OnError for: {exception.GetExceptionChainMessagesWithSql()}"),
                                         _logger), 
-                                _cancelToken));
+                                    cancelToken));
                 }
 
                 _logger.Debug("Receiver cancelling");
 
                 _cancelToken.IfSome(token => token.ThrowIfCancellationRequested());
             },
-            _cancelToken);
+            cancelToken);
 
             _logger.Debug("Starting Receiver");
 

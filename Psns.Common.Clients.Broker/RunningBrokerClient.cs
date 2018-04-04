@@ -56,8 +56,8 @@ namespace Psns.Common.Clients.Broker
                 throw new InvalidOperationException($"{nameof(BrokerClient)} has not started receiving");
             }
 
-            CancellationTokenSource tokenSource = _tokenSource;
-            Task worker = _worker;
+            var tokenSource = _tokenSource | CancellationTokenSource.CreateLinkedTokenSource(CancellationToken.None);
+            var worker = _worker | Task.Delay(0);
             var observers = _observers.Match(s => s, () => new ConcurrentBag<IObserver<BrokerMessage>>());
 
             if (worker.IsCompleted)

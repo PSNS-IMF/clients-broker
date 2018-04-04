@@ -10,6 +10,10 @@
     <projectUrl>https://github.com/PSNS-IMF/clients-broker</projectUrl>
     <licenseUrl>https://github.com/PSNS-IMF/clients-broker/blob/master/LICENSE.md</licenseUrl>
     <releaseNotes>
+      ## 2.0.0.2
+      ### Features
+      * Updated to latest SystemExtensions
+
       ## 2.0.0.1
       ### Features
       * Modifications to allow for testing
@@ -29,7 +33,7 @@
     <version>$version$</version>
     <tags>PSNS SQL Service Broker</tags>
     <dependencies>
-      <dependency id="Psns.Common.SystemExtensions" version="2018.4.3.3" />
+      <dependency id="Psns.Common.SystemExtensions" version="2018.4.4.1" />
       <dependency id="System.Collections.Immutable" version="1.4.0" />
     </dependencies>
   </metadata>

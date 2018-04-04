@@ -31,7 +31,7 @@ namespace Psns.Common.Clients.Broker
             (log, connectionFactory, openAsync, setupCommand, withCommand) =>
             {
                 var commitTransaction = fun((Func<IDbTransaction, TryAsync<T>> func, IDbTransaction transaction) => 
-                    func(transaction).Regardless(TryAsync(() => transaction.Commit())));
+                    func(transaction).Regardless(TryAsync(async () => (await transaction.AsTask()).Commit())));
                 var createCommand = CreateCommandAsync<T>().Par(withCommand.Compose(setupCommand));
                 var runWithCommit = commitTransaction.Par(createCommand);
 
