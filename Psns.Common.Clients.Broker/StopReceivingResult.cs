@@ -3,6 +3,7 @@ using System;
 using System.Collections.Immutable;
 using System.Linq;
 using System.Threading.Tasks;
+using static Psns.Common.Functional.Prelude;
 
 namespace Psns.Common.Clients.Broker
 {
@@ -38,7 +39,11 @@ namespace Psns.Common.Clients.Broker
         }
 
         public StopReceivingResult Append(StopReceivingResult result) =>
-            new StopReceivingResult((_exceptions ?? ImmutableList.Create<Exception>()).AddRange(result._exceptions));
+            Map((_exceptions ?? ImmutableList.Create<Exception>()), exceptions =>
+                new StopReceivingResult(Possible(result._exceptions)
+                    .Match(
+                        some: rExceptions => exceptions.AddRange(rExceptions),
+                        none: () => exceptions)));
     }
 
     public static partial class AppPrelude

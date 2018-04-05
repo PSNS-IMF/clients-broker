@@ -193,10 +193,17 @@ namespace FluentBrokerClients.UnitTests
         [Test]
         public async Task StopReceiving_NoErrors_ResultIsNotFailure_SubscribersCleared()
         {
-            AddSubscriber();
+            var mocks = CreateMocks();
 
-            Expect((await _client.ReceiveMessages(QueueName).StopReceiving()).Failed, False);
-            Expect(_client.Subscribers.Count, EqualTo(0));
+            var client = new BrokerClient(
+                () => mocks.Item1.Object,
+                _mockOpenAsync.Object,
+                _mockExeNonQueryAsync.Object);
+
+            client.Subscribe(CreateObserver());
+
+            Expect((await client.ReceiveMessages(QueueName).StopReceiving()).Failed, False);
+            Expect(client.Subscribers.Count, EqualTo(0));
         }
 
         [Test]
