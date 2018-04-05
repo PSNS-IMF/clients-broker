@@ -1,5 +1,4 @@
 ﻿using Psns.Common.Functional;
-using Psns.Common.SystemExtensions;
 using Psns.Common.SystemExtensions.Diagnostics;
 using System;
 using System.Collections.Concurrent;
@@ -162,8 +161,11 @@ namespace Psns.Common.Clients.Broker
         #endregion
 
         /// <summary>
-        /// Adds a new observer to receive future queue messages.
+        /// Adds a new observer to receive future queue messages
         /// </summary>
+        /// <remarks>Be aware that <see cref="IObserver{T}.OnNext(T)"/>, <see cref="IObserver{T}.OnError(Exception)"/>,
+        /// and <see cref="IObserver{T}.OnCompleted()"/> are called asynchronously; 
+        /// so appropriate state sharing precautions should be taken to avoid race conditions.</remarks>
         /// <param name="observer">New addition</param>
         /// <exception cref="System.ArgumentNullException"></exception>
         /// <returns>A subscription that can be unsubscribed from by calling Dispose</returns>
@@ -197,19 +199,12 @@ namespace Psns.Common.Clients.Broker
 
                 while (!_tokenSource.IsCancellationRequested)
                 {
-                    await _getMessage(queueName)
-                        .Match(
-                            success: message =>
-                                Task.Factory.StartNew(() =>
-                                    _composeProcessMessage(cancelToken)()(_observers, message)
-                                        .Match(
-                                            _ => Unit,
-                                            exception => SendObserversError(exception, cancelToken).Result)
-                                        .Result,
-                                    cancelToken,
-                                    TaskCreationOptions.AttachedToParent,
-                                    _scheduler),
-                            fail: exception => SendObserversError(exception, cancelToken));
+                    await _getMessage(queueName).Match(
+                        success: message => QueueForProcessing(message, cancelToken),
+                        fail: exception => _observers.Iter(obs => 
+                            obs.SendError(exception, _logger),
+                            cancelToken,
+                            _scheduler));
                 }
 
                 _logger.Debug("Receiver cancelling");
@@ -223,13 +218,14 @@ namespace Psns.Common.Clients.Broker
             return new RunningBrokerClient(_logger, _observers, _receiver, _tokenSource);
         }
 
-        Task<UnitValue> SendObserversError(Exception exception, CancellationToken token) =>
-            Task.Factory.StartNew(() =>
-                _observers.Iter(observer =>
-                    Task.Factory.StartNew(
-                        () => observer.SendError(exception, _logger), 
-                        token, 
-                        TaskCreationOptions.AttachedToParent, 
+        async Task<UnitValue> QueueForProcessing(BrokerMessage message, CancellationToken token) =>
+            await await Task.Factory.StartNew(async () => // await
+                await await _composeProcessMessage(token)().Par(_observers)(message) // await
+                .Match( // await
+                    success: _ => Unit.AsTask(),
+                    fail: exception => _observers.Iter(obs =>
+                        obs.SendError(exception, _logger),
+                        token,
                         _scheduler)),
                 token,
                 TaskCreationOptions.AttachedToParent,

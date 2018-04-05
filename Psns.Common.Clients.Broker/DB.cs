@@ -28,7 +28,7 @@ namespace Psns.Common.Clients.Broker
             Func<IDbCommand, IDbCommand>,
             Func<IDbCommand, Task<T>>,
             TryAsync<T>> CommandFactory<T>() =>
-            (log, connectionFactory, openAsync, setupCommand, withCommand) => () =>
+            (log, connectionFactory, openAsync, setupCommand, withCommand) =>
             {
                 var commitTransaction = fun((Func<IDbTransaction, TryAsync<T>> func, IDbTransaction transaction) => 
                     func(transaction).Regardless(TryAsync(async () => (await transaction.AsTask()).Commit())));
@@ -40,7 +40,7 @@ namespace Psns.Common.Clients.Broker
                     .Par(beginTransaction, cmd => openAsync(cmd))
                     .Compose(() => connectionFactory);
 
-                return connect().TryAsync();
+                return connect();
             };
 
         /// <summary>

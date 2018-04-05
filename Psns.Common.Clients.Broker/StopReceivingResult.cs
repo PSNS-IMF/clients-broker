@@ -18,13 +18,13 @@ namespace Psns.Common.Clients.Broker
         /// If any Exceptions occurred.
         /// </summary>
         public bool Failed => _exceptions?.Count > 0 
-            && _exceptions.Any(e => e.GetType() != typeof(TaskCanceledException));
+            && _exceptions.Any(e => !IsCancellation(e));
 
         /// <summary>
         /// Contains all Exceptions captured.
         /// </summary>
         public AggregateException Exceptions =>
-            new AggregateException(_exceptions.Where(e => e.GetType() != typeof(TaskCanceledException)));
+            new AggregateException(_exceptions.Where(e => !IsCancellation(e)));
 
         public StopReceivingResult(Try<UnitValue> attempt)
         {
@@ -44,6 +44,11 @@ namespace Psns.Common.Clients.Broker
                     .Match(
                         some: rExceptions => exceptions.AddRange(rExceptions),
                         none: () => exceptions)));
+
+        static bool IsCancellation(Exception exception) =>
+            Map(
+                Cons(typeof(TaskCanceledException), typeof(OperationCanceledException)),
+                types => types.Contains(exception.GetType()));
     }
 
     public static partial class AppPrelude
