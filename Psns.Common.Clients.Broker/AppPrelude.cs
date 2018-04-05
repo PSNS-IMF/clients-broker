@@ -68,12 +68,13 @@ namespace Psns.Common.Clients.Broker
         /// <returns></returns>
         public static Func<
             Maybe<Log>, 
-            CancellationToken, 
+            Maybe<TaskScheduler>,
+            Maybe<CancellationToken>,
             EndDialog, 
             IEnumerable<IObserver<BrokerMessage>>, 
             BrokerMessage, 
             TryAsync<UnitValue>> ProcessMessageAsyncFactory() =>
-            (logger, cancelToken, endDialog, observers, message) => () =>
+            (logger, scheduler, cancelToken, endDialog, observers, message) => () =>
                 Match(
                     message == BrokerMessage.Empty,
                     NotEqual(true, _ =>
@@ -84,13 +85,13 @@ namespace Psns.Common.Clients.Broker
                                     // error message
                                     AsEqual(ServiceBrokerErrorMessageType, __ => logger.Debug(observers, "Calling Observers OnError")
                                         .TryIterAsync(observer =>
-                                            observer.SendError(new Exception(message.Message), logger), cancelToken)),
+                                            observer.SendError(new Exception(message.Message), logger), cancelToken, scheduler)),
                                     // end dialog message
                                     AsEqual(ServiceBrokerEndDialogMessageType, __ => TryAsync(() => Task.FromResult(Unit))),
                                     // give the rest to the observers
                                     __ => logger.Debug(observers, "Calling Observers OnNext")
                                         .TryIterAsync(observer => 
-                                            observer.SendNext(message, logger), cancelToken))).TryAsync(), 
+                                            observer.SendNext(message, logger), cancelToken, scheduler))).TryAsync(), 
                             "Ending Dialog")),
                     _ => Some(TryAsync(() => Task.FromResult(Unit)).TryAsync()));
 

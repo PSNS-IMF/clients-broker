@@ -48,6 +48,9 @@ namespace Psns.Common.Clients.Broker
 
     public static partial class AppPrelude
     {
+        public static StopReceivingResult Append(this StopReceivingResult self, Try<UnitValue> next) =>
+            self.Append(next);
+
         public static async Task<StopReceivingResult> Append(this StopReceivingResult self, TryAsync<UnitValue> next) =>
             self.Append(await next.FromAsync());
 

@@ -154,7 +154,8 @@ namespace Psns.Common.Clients.Broker
             _composeProcessMessage = fun((CancellationToken token) => 
                 new ProcessMessageAsync(() => 
                     ProcessMessageAsyncFactory().Par(
-                        _logger, 
+                        _logger,
+                        _scheduler,
                         token,
                         endDialog)));
         }
@@ -196,21 +197,19 @@ namespace Psns.Common.Clients.Broker
 
                 while (!_tokenSource.IsCancellationRequested)
                 {
-                    // have to await twice because 2 tasks are created in this call chain
-                    await await _getMessage(queueName)
-                        // inside await
-                        .Bind(_composeProcessMessage(cancelToken)().Par(_observers))
+                    await _getMessage(queueName)
                         .Match(
-                            success: async _ => await Task.FromResult(Unit),
-                            fail: async exception =>
-                                // outside await
-                                await _observers.IterAsync(observer =>
-                                    observer.SendError(
-                                        _logger.Debug(
-                                            exception, 
-                                            $"Calling Observers OnError for: {exception.GetExceptionChainMessagesWithSql()}"),
-                                        _logger), 
-                                    cancelToken));
+                            success: message =>
+                                Task.Factory.StartNew(() =>
+                                    _composeProcessMessage(cancelToken)()(_observers, message)
+                                        .Match(
+                                            _ => Unit,
+                                            exception => SendObserversError(exception, cancelToken).Result)
+                                        .Result,
+                                    cancelToken,
+                                    TaskCreationOptions.AttachedToParent,
+                                    _scheduler),
+                            fail: exception => SendObserversError(exception, cancelToken));
                 }
 
                 _logger.Debug("Receiver cancelling");
@@ -223,6 +222,18 @@ namespace Psns.Common.Clients.Broker
 
             return new RunningBrokerClient(_logger, _observers, _receiver, _tokenSource);
         }
+
+        Task<UnitValue> SendObserversError(Exception exception, CancellationToken token) =>
+            Task.Factory.StartNew(() =>
+                _observers.Iter(observer =>
+                    Task.Factory.StartNew(
+                        () => observer.SendError(exception, _logger), 
+                        token, 
+                        TaskCreationOptions.AttachedToParent, 
+                        _scheduler)),
+                token,
+                TaskCreationOptions.AttachedToParent,
+                _scheduler);
 
         /// <summary>
         /// A list of the current Subscribers

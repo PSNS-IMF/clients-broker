@@ -403,7 +403,17 @@ namespace FluentBrokerClients.UnitTests
             var mockCommand = mocks.Item3;
             var mockParams = mocks.Item4;
 
-            mockConnection.Setup(c => c.Dispose()).Callback(() => _wait.Set());
+            mockConnection.Setup(c => c.Dispose()).Callback(fun(() =>
+            {
+                var count = 0;
+
+                return new Action(() =>
+                {
+                    if(++count == 2)
+                        _wait.Set();
+                });
+            })());
+
             var client = new BrokerClient(() => mocks.Item1.Object, _mockOpenAsync.Object, _mockExeNonQueryAsync.Object);
 
             client.Subscribe(mockObserver.Object);
