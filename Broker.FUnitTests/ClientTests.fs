@@ -10,6 +10,10 @@ open Psns.Common.Functional
 open Foq
 open System.Data.SqlClient
 open System.Threading
+open Psns.Common.SystemExtensions.Diagnostics
+open System.Diagnostics
+
+type ex = Psns.Common.Functional.Prelude
 
 [<Test>]
 let ``it should call observers independently.`` () =
@@ -34,6 +38,11 @@ let ``it should call observers independently.`` () =
                         | _ -> 0
             | _ -> 0)
         
+    let mutable entries = List.empty<string>
+    let log = new Log(fun msg -> fun cat -> fun eType -> 
+        entries <- List.Cons(msg, entries)
+        ())
+
     let command = Mock<IDbCommand>().Setup(fun cmd -> <@ cmd.Parameters @>).Returns(finalparms.Create()).Create()
     let connection = Mock<IDbConnection>().Setup(fun conn -> <@ conn.CreateCommand() @>).Returns(command)
     let transaction = Mock<IDbTransaction>().Setup(fun trans -> <@ trans.Connection @>).Returns(connection.Create()).Create()
@@ -42,7 +51,7 @@ let ``it should call observers independently.`` () =
     let factory = Func<IDbConnection> (fun () -> finalConnection.Create())
     let openAsync = new OpenAsync(fun conn -> conn.AsTask())
     let execQueryAsync = new ExecuteNonQueryAsync(fun _ -> Task.FromResult(0))
-    let client = new BrokerClient(factory, openAsync, execQueryAsync)
+    let client = new BrokerClient(factory, openAsync, execQueryAsync, ex.Some(log), Maybe<TaskScheduler>.None)
 
     let observer = Mock<IObserver<BrokerMessage>>().Setup(fun o -> <@ o.OnNext(any()) @>).Calls<unit>(fun _ ->
         resetEvent.Set() |> ignore).Create()
@@ -51,8 +60,11 @@ let ``it should call observers independently.`` () =
     observers |> List.map (fun obs -> client.Subscribe obs) |> ignore
     
     let running = client.ReceiveMessages("queue")
-    resetEvent.WaitOne() |> ignore
+    //resetEvent.WaitOne() |> ignore
 
     running.StopReceiving().Result.Failed |> should equal false
     verify <@ observer.OnNext(is(fun msg -> msg.MessageType = "type")) @> atleastonce
     client.Subscribers.Count |> should equal 0
+
+    let cmp = List.compareWith(fun (a: string) (b: string) -> a.CompareTo(b))
+    cmp entries [""] |> should equal 0

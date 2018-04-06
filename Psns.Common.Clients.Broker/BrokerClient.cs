@@ -193,18 +193,20 @@ namespace Psns.Common.Clients.Broker
             var cancelToken = _tokenSource.Token;
             _cancelToken = cancelToken;
 
-            _receiver = Task.Run(async () =>
+            _receiver = Task.Run(() =>
             {
                 _logger.Debug("Receiver started");
 
                 while (!_tokenSource.IsCancellationRequested)
                 {
-                    await _getMessage(queueName).Match(
-                        success: message => QueueForProcessing(message, cancelToken),
-                        fail: exception => _observers.Iter(obs => 
-                            obs.SendError(exception, _logger),
-                            cancelToken,
-                            _scheduler));
+                    _getMessage(queueName).Match(
+                        success: message => 
+                            QueueForProcessing(message, cancelToken),
+                        fail: exception => 
+                            _observers.Iter(obs => 
+                                obs.SendError(exception, _logger),
+                                cancelToken,
+                                _scheduler));
                 }
 
                 _logger.Debug("Receiver cancelling");
@@ -218,15 +220,17 @@ namespace Psns.Common.Clients.Broker
             return new RunningBrokerClient(_logger, _observers, _receiver, _tokenSource);
         }
 
-        async Task<UnitValue> QueueForProcessing(BrokerMessage message, CancellationToken token) =>
-            await await Task.Factory.StartNew(async () => // await
-                await await _composeProcessMessage(token)().Par(_observers)(message) // await
+        Task<UnitValue> QueueForProcessing(BrokerMessage message, CancellationToken token) =>
+            Task.Factory.StartNew(() => // await
+            _composeProcessMessage(token)().Par(_observers)(message) // await
                 .Match( // await
-                    success: _ => Unit.AsTask(),
-                    fail: exception => _observers.Iter(obs =>
-                        obs.SendError(exception, _logger),
-                        token,
-                        _scheduler)),
+                    success: _ => 
+                        Unit,
+                    fail: exception => 
+                        _observers.Iter(obs =>
+                            obs.SendError(exception, _logger),
+                            token,
+                            _scheduler).Result).Result,
                 token,
                 TaskCreationOptions.AttachedToParent,
                 _scheduler);
