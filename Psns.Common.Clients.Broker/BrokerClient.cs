@@ -1,4 +1,5 @@
 ﻿using Psns.Common.Functional;
+using Psns.Common.SystemExtensions;
 using Psns.Common.SystemExtensions.Diagnostics;
 using System;
 using System.Collections.Concurrent;
@@ -199,7 +200,23 @@ namespace Psns.Common.Clients.Broker
 
                 while (!_tokenSource.IsCancellationRequested)
                 {
-                    QueueForProcessing(_getMessage(queueName), cancelToken);
+                    var result = _getMessage(queueName).Match(
+                        success: message =>
+                        {
+                            if (message != BrokerMessage.Empty)
+                            {
+                                _logger.Debug($"getMessage success: {message}");
+                            }
+
+                            return QueueForProcessing(message, cancelToken);
+                        },
+                        fail: exception =>
+                            _logger.Debug(cancelToken.IsCancellationRequested, $"getMessage fail: {exception.GetExceptionChainMessagesWithSql()}")
+                            ? Unit.Tap(_ => _logger.Error(exception.Message)).AsTask()
+                            : _observers.Iter(
+                                obs => obs.OnError(exception), 
+                                cancelToken, 
+                                _scheduler)).Result.Result;
                 }
 
                 _logger.Debug("Receiver cancelling");
@@ -227,32 +244,22 @@ namespace Psns.Common.Clients.Broker
         /// <param name="tryGetMessage"></param>
         /// <param name="token"></param>
         /// <returns></returns>
-        Task<UnitValue> QueueForProcessing(TryAsync<BrokerMessage> tryGetMessage, CancellationToken token) =>
-            tryGetMessage.Match(
-                success: message =>
-                    Map(_composeProcessMessage(token, _observers), processMessage =>
-                        Task.Factory.StartNew(() =>
-                            processMessage(message)
-                                .Match(
-                                    success: _ => 
-                                        Unit.AsTask(),
-                                    fail: async exception =>
-                                        await _observers.Iter(obs =>
-                                            obs.SendError(exception, _logger),
-                                            token,
-                                            _scheduler)).Result.Result,
-                            token,
-                            TaskCreationOptions.AttachedToParent,
-                            _scheduler)),
-                fail: exception =>
+        Task<UnitValue> QueueForProcessing(BrokerMessage message, CancellationToken token) =>
+            Map(_composeProcessMessage(token, _observers), processMessage =>
                     Task.Factory.StartNew(() =>
-                        _observers.Iter(obs =>
-                            obs.SendError(exception, _logger),
-                            token,
-                            _scheduler).Result,
-                        token,
-                        TaskCreationOptions.AttachedToParent,
-                        _scheduler)).Result;
+                        processMessage(message)
+                            .Match(
+                                success: _ =>
+                                    _logger.Debug(Unit, "processMessage success"),
+                                fail: exception =>
+                                    _logger.Debug(_observers, $"processMessage fail: {exception.Message}").Iter(obs =>
+                                        obs.SendError(exception, _logger),
+                                        token,
+                                        _scheduler).Result).Result,
+                                token,
+                                TaskCreationOptions.AttachedToParent,
+                                _scheduler)
+                        .ContinueWith(task => Unit.Tap(_ => _logger.Debug("Message processing worker completed"))));
 
         /// <summary>
         /// A list of the current Subscribers

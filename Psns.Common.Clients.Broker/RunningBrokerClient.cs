@@ -18,7 +18,7 @@ namespace Psns.Common.Clients.Broker
         /// Defines a method that stops receiving all messages.
         /// </summary>
         /// <returns></returns>
-        Task<StopReceivingResult> StopReceiving();
+        StopReceivingResult StopReceiving();
     }
 
     /// <summary>
@@ -49,7 +49,7 @@ namespace Psns.Common.Clients.Broker
         /// </summary>
         /// <exception cref="System.InvalidOperationException"></exception>
         /// <returns>A result containing any Exceptions from removing Subscribers</returns>
-        public async Task<StopReceivingResult> StopReceiving()
+        public StopReceivingResult StopReceiving()
         {
             if (_observers.IsNone || _worker.IsNone || _tokenSource.IsNone)
             {
@@ -65,9 +65,9 @@ namespace Psns.Common.Clients.Broker
                 throw new InvalidOperationException($"{nameof(BrokerClient)} has already stopped receiving");
             }
 
-            return await new StopReceivingResult(Try(() => tokenSource.Cancel()))
-                .Append(TryAsync(async () => { await worker; return Unit; }))
-                .Append(Try(() => { worker.Dispose(); _logger.Debug("Receiver stopped");  }))
+            return new StopReceivingResult(Try(() => tokenSource.Cancel()))
+                .Append(Try(() => { worker.Wait(); return Unit; }))
+                .Append(Try(() => { worker.Dispose(); _logger.Debug("Receiver stopped"); }))
                 .Append(Try(() => tokenSource.Dispose()))
                 .Append(
                     _logger.Debug(observers, "Calling Observers OnCompleted").Aggregate(

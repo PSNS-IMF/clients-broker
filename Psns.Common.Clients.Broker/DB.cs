@@ -37,7 +37,7 @@ namespace Psns.Common.Clients.Broker
 
                 var beginTransaction = BeginTransactionAsync<T>().Par(runWithCommit);
                 var connect = ConnectAsync<T>()
-                    .Par(beginTransaction, cmd => openAsync(cmd))
+                    .Par(beginTransaction, async cmd => await openAsync(cmd))
                     .Compose(() => connectionFactory);
 
                 return connect();
