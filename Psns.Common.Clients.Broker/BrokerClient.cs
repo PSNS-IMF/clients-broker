@@ -62,7 +62,7 @@ namespace Psns.Common.Clients.Broker
         readonly OpenAsync _openAsync;
         readonly ExecuteNonQueryAsync _executeNonQueryAsync;
         readonly GetMessage _getMessage;
-        readonly Func<CancellationToken, ProcessMessageAsync> _composeProcessMessage;
+        readonly Func<CancellationToken, IEnumerable<Subscriber>, ProcessMessageAsync> _composeProcessMessage;
 
         // worker thread handling
         readonly TaskScheduler _scheduler;
@@ -150,13 +150,13 @@ namespace Psns.Common.Clients.Broker
                 _openAsync,
                 _executeNonQueryAsync));
 
-            _composeProcessMessage = fun((CancellationToken token) => 
-                new ProcessMessageAsync(() => 
-                    ProcessMessageAsyncFactory().Par(
+            _composeProcessMessage = fun((CancellationToken token, IEnumerable<Subscriber> observers) => 
+                new ProcessMessageAsync(ProcessMessageAsyncFactory().Par(
                         _logger,
                         _scheduler,
                         token,
-                        endDialog)));
+                        endDialog,
+                        observers)));
         }
         #endregion
 
@@ -199,14 +199,7 @@ namespace Psns.Common.Clients.Broker
 
                 while (!_tokenSource.IsCancellationRequested)
                 {
-                    _getMessage(queueName).Match(
-                        success: message => 
-                            QueueForProcessing(message, cancelToken),
-                        fail: exception => 
-                            _observers.Iter(obs => 
-                                obs.SendError(exception, _logger),
-                                cancelToken,
-                                _scheduler));
+                    QueueForProcessing(_getMessage(queueName), cancelToken);
                 }
 
                 _logger.Debug("Receiver cancelling");
@@ -220,20 +213,46 @@ namespace Psns.Common.Clients.Broker
             return new RunningBrokerClient(_logger, _observers, _receiver, _tokenSource);
         }
 
-        Task<UnitValue> QueueForProcessing(BrokerMessage message, CancellationToken token) =>
-            Task.Factory.StartNew(() => // await
-            _composeProcessMessage(token)().Par(_observers)(message) // await
-                .Match( // await
-                    success: _ => 
-                        Unit,
-                    fail: exception => 
+        /// <summary>
+        /// Execute tryGetMessage and wait for result
+        ///     On success, process message
+        ///     On fail, notify observers of failure
+        ///
+        /// On both success and fail, a child Task (AttachedToParent) is created
+        /// so that more messages can be processed concurrently. Attaching to parent
+        /// ensures that when parent is stopped, all children are also waited on
+        /// and stopped.
+        /// 
+        /// </summary>
+        /// <param name="tryGetMessage"></param>
+        /// <param name="token"></param>
+        /// <returns></returns>
+        Task<UnitValue> QueueForProcessing(TryAsync<BrokerMessage> tryGetMessage, CancellationToken token) =>
+            tryGetMessage.Match(
+                success: message =>
+                    Map(_composeProcessMessage(token, _observers), processMessage =>
+                        Task.Factory.StartNew(() =>
+                            processMessage(message)
+                                .Match(
+                                    success: _ => 
+                                        Unit.AsTask(),
+                                    fail: async exception =>
+                                        await _observers.Iter(obs =>
+                                            obs.SendError(exception, _logger),
+                                            token,
+                                            _scheduler)).Result.Result,
+                            token,
+                            TaskCreationOptions.AttachedToParent,
+                            _scheduler)),
+                fail: exception =>
+                    Task.Factory.StartNew(() =>
                         _observers.Iter(obs =>
                             obs.SendError(exception, _logger),
                             token,
-                            _scheduler).Result).Result,
-                token,
-                TaskCreationOptions.AttachedToParent,
-                _scheduler);
+                            _scheduler).Result,
+                        token,
+                        TaskCreationOptions.AttachedToParent,
+                        _scheduler)).Result;
 
         /// <summary>
         /// A list of the current Subscribers

@@ -11,7 +11,6 @@ open Foq
 open System.Data.SqlClient
 open System.Threading
 open Psns.Common.SystemExtensions.Diagnostics
-open System.Diagnostics
 
 type ex = Psns.Common.Functional.Prelude
 
@@ -60,11 +59,9 @@ let ``it should call observers independently.`` () =
     observers |> List.map (fun obs -> client.Subscribe obs) |> ignore
     
     let running = client.ReceiveMessages("queue")
-    //resetEvent.WaitOne() |> ignore
+    resetEvent.WaitOne() |> ignore
 
     running.StopReceiving().Result.Failed |> should equal false
     verify <@ observer.OnNext(is(fun msg -> msg.MessageType = "type")) @> atleastonce
     client.Subscribers.Count |> should equal 0
-
-    let cmp = List.compareWith(fun (a: string) (b: string) -> a.CompareTo(b))
-    cmp entries [""] |> should equal 0
+    entries |> List.contains "Calling Observers OnCompleted" |> should equal true

@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Diagnostics;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using static Psns.Common.Clients.Broker.Constants;
@@ -31,7 +32,7 @@ namespace Psns.Common.Clients.Broker
     /// Creates a function that evaluates and processes BrokerMessages.
     /// </summary>
     /// <returns></returns>
-    public delegate Func<IEnumerable<IObserver<BrokerMessage>>, BrokerMessage, TryAsync<UnitValue>> ProcessMessageAsync();
+    public delegate TryAsync<UnitValue> ProcessMessageAsync(BrokerMessage message);
 
     public static partial class AppPrelude
     {
@@ -75,12 +76,12 @@ namespace Psns.Common.Clients.Broker
             IEnumerable<IObserver<BrokerMessage>>, 
             BrokerMessage, 
             TryAsync<UnitValue>> ProcessMessageAsyncFactory() =>
-            (logger, scheduler, cancelToken, endDialog, observers, message) => async () =>
-                await Match(
+            (logger, scheduler, cancelToken, endDialog, observers, message) =>
+                Match(
                     message == BrokerMessage.Empty,
-                    NotEqual(true, async _ =>
+                    NotEqual(true, _ =>
                         logger.Debug(
-                            await await endDialog(message.Conversation).Match(async u =>
+                            endDialog(message.Conversation).Bind(async u =>
                                 {
                                     var result = UnitValue.Default.AsTask();    
 
@@ -100,10 +101,9 @@ namespace Psns.Common.Clients.Broker
                                     }
 
                                     return await result;
-                                },
-                                e => Unit.AsTask()),
+                                }),
                             "Ending Dialog")),
-                    _ => Some(Task.FromResult(Unit)));
+                    _ => TryAsync(() => Unit.AsTask()));
 
         /// <summary>
         /// Adds error handling to IObserver.OnNext
@@ -151,14 +151,22 @@ namespace Psns.Common.Clients.Broker
             Action<IObserver<T>> func,
             CancellationToken token,
             TaskScheduler scheduler) =>
-                await Task.Factory.StartNew(() =>
-                    self.Iter(obs => Task.Factory.StartNew(() =>
-                        func(obs),
-                        token, 
-                        TaskCreationOptions.AttachedToParent, 
-                        scheduler)),
-                    token,
-                    TaskCreationOptions.AttachedToParent,
-                    scheduler);
+                (await Task.WhenAll(self.Aggregate(
+                    new List<Task<UnitValue>>(),
+                    (list, next) =>
+                    {
+                        list.Add(Task.Factory.StartNew(() => 
+                            {
+                                token.ThrowIfCancellationRequested();
+                                func(next);
+                                return Unit;
+                            }, 
+                            token, 
+                            TaskCreationOptions.None, 
+                            scheduler));
+
+                        return list;
+                    })))
+                .FirstOrDefault();
     }
 }
