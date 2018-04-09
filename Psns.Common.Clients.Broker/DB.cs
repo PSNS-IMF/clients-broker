@@ -63,8 +63,11 @@ namespace Psns.Common.Clients.Broker
                 var runWithCommit = commitTransaction.Par(createCommand);
 
                 var beginTransaction = BeginTransaction<T>().Par(runWithCommit);
+                var openConnection = fun((Func<IDbConnection, Try<T>> func, IDbConnection conn) => 
+                    Try(() => conn.Tap(_ => conn.Open())).Bind(func));
+
                 var connect = Connect<T>()
-                    .Par(beginTransaction)
+                    .Par(openConnection.Par(beginTransaction))
                     .Compose(() => connectionFactory);
 
                 return connect();

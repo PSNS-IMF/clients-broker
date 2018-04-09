@@ -160,6 +160,19 @@ namespace Psns.Common.Clients.Broker
         /// Creates a new client.
         /// </summary>
         /// <param name="connectionFactory">A function that creates a new DB connection</param>
+        /// <param name="logger"></param>
+        /// <param name="scheduler"></param>
+        /// <exception cref="System.ArgumentNullException"></exception>
+        public BrokerClient(
+            Func<IDbConnection> connectionFactory,
+            Log logger,
+            TaskScheduler scheduler)
+                : this(connectionFactory, None, None, logger, scheduler) { }
+
+        /// <summary>
+        /// Creates a new client.
+        /// </summary>
+        /// <param name="connectionFactory">A function that creates a new DB connection</param>
         /// <param name="openAsync">A function that asynchronously opens the DB connection</param>
         /// <param name="executeNonQueryAsync">A function that asynchronously executes a DB command</param>
         /// <param name="logger">A function that writes logging messages</param>
