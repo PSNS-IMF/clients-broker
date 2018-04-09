@@ -27,7 +27,7 @@ namespace Psns.Common.Clients.Broker
             OpenAsync,
             Func<IDbCommand, IDbCommand>,
             Func<IDbCommand, Task<T>>,
-            TryAsync<T>> CommandFactory<T>() =>
+            TryAsync<T>> CommandFactoryAsync<T>() =>
             (log, connectionFactory, openAsync, setupCommand, withCommand) =>
             {
                 var commitTransaction = fun((Func<IDbTransaction, TryAsync<T>> func, IDbTransaction transaction) => 
@@ -38,6 +38,33 @@ namespace Psns.Common.Clients.Broker
                 var beginTransaction = BeginTransactionAsync<T>().Par(runWithCommit);
                 var connect = ConnectAsync<T>()
                     .Par(beginTransaction, async cmd => await openAsync(cmd))
+                    .Compose(() => connectionFactory);
+
+                return connect();
+            };
+
+        /// <summary>
+        /// Composes a function of:
+        /// 1) a function that sets up a command with it's text and parameters
+        /// 2) a function that takes the setup command and returns a result of T
+        /// </summary>
+        /// <returns></returns>
+        public static Func<
+            Maybe<Log>,
+            Func<IDbConnection>,
+            Func<IDbCommand, IDbCommand>,
+            Func<IDbCommand, T>,
+            Try<T>> CommandFactory<T>() =>
+            (log, connectionFactory, setupCommand, withCommand) =>
+            {
+                var commitTransaction = fun((Func<IDbTransaction, Try<T>> func, IDbTransaction transaction) =>
+                    func(transaction).Regardless(Try(() => transaction.Commit())));
+                var createCommand = CreateCommand<T>().Par(withCommand.Compose(setupCommand));
+                var runWithCommit = commitTransaction.Par(createCommand);
+
+                var beginTransaction = BeginTransaction<T>().Par(runWithCommit);
+                var connect = Connect<T>()
+                    .Par(beginTransaction)
                     .Compose(() => connectionFactory);
 
                 return connect();

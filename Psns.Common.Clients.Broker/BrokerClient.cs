@@ -53,6 +53,9 @@ namespace Psns.Common.Clients.Broker
     public class BrokerClient : IBrokerClient
     {
         #region private properties
+        delegate ProcessMessageAsync ComposeProcessMessageAsync(CancellationToken token, IEnumerable<Subscriber> observers);
+        delegate ProcessMessage ComposeProcessMessage(CancellationToken token, IEnumerable<Subscriber> observers);
+
         readonly Maybe<Log> _logger;
 
         // Observers that will receive messages from a SB queue.
@@ -60,10 +63,13 @@ namespace Psns.Common.Clients.Broker
 
         // DB initialization
         readonly Func<IDbConnection> _connectionFactory;
-        readonly OpenAsync _openAsync;
-        readonly ExecuteNonQueryAsync _executeNonQueryAsync;
-        readonly GetMessage _getMessage;
-        readonly Func<CancellationToken, IEnumerable<Subscriber>, ProcessMessageAsync> _composeProcessMessage;
+        readonly Maybe<OpenAsync> _openAsync;
+        readonly Maybe<ExecuteNonQueryAsync> _executeNonQueryAsync;
+        readonly Maybe<GetMessageAsync> _getMessageAsync;
+        readonly Maybe<GetMessage> _getMessage;
+        readonly Maybe<ComposeProcessMessageAsync> _composeProcessMessageAsync;
+        readonly Maybe<ComposeProcessMessage> _composeProcessMessage;
+        bool IsAsync => _openAsync.IsSome && _executeNonQueryAsync.IsSome;
 
         // worker thread handling
         readonly TaskScheduler _scheduler;
@@ -73,6 +79,16 @@ namespace Psns.Common.Clients.Broker
         #endregion
 
         #region constructors
+
+        /// <summary>
+        /// Creates a new client.
+        /// </summary>
+        /// <param name="connectionFactory">A function that creates a new DB connection</param>
+        /// <exception cref="System.ArgumentNullException"></exception>
+        public BrokerClient(
+            Func<IDbConnection> connectionFactory)
+                : this(connectionFactory, None, None, None, None) { }
+
         /// <summary>
         /// Creates a new client.
         /// </summary>
@@ -96,10 +112,34 @@ namespace Psns.Common.Clients.Broker
         /// <exception cref="System.ArgumentNullException"></exception>
         public BrokerClient(
             Func<IDbConnection> connectionFactory,
+            Log logger)
+                : this(connectionFactory, None, None, logger, None) { }
+
+        /// <summary>
+        /// Creates a new client.
+        /// </summary>
+        /// <param name="connectionFactory">A function that creates a new DB connection</param>
+        /// <param name="openAsync">A function that asynchronously opens the DB connection</param>
+        /// <param name="executeNonQueryAsync">A function that asynchronously executes a DB command</param>
+        /// <param name="logger">A function that writes logging messages</param>
+        /// <exception cref="System.ArgumentNullException"></exception>
+        public BrokerClient(
+            Func<IDbConnection> connectionFactory,
             OpenAsync openAsync,
             ExecuteNonQueryAsync executeNonQueryAsync,
             Log logger)
                 : this(connectionFactory, openAsync, executeNonQueryAsync, logger, None) { }
+
+        /// <summary>
+        /// Creates a new client.
+        /// </summary>
+        /// <param name="connectionFactory">A function that creates a new DB connection</param>
+        /// <param name="scheduler"></param>
+        /// <exception cref="System.ArgumentNullException"></exception>
+        public BrokerClient(
+            Func<IDbConnection> connectionFactory,
+            TaskScheduler scheduler)
+                : this(connectionFactory, None, None, None, scheduler) { }
 
         /// <summary>
         /// Creates a new client.
@@ -127,38 +167,68 @@ namespace Psns.Common.Clients.Broker
         /// <exception cref="System.ArgumentNullException"></exception>
         public BrokerClient(
             Func<IDbConnection> connectionFactory, 
-            OpenAsync openAsync,
-            ExecuteNonQueryAsync executeNonQueryAsync,
+            Maybe<OpenAsync> openAsync,
+            Maybe<ExecuteNonQueryAsync> executeNonQueryAsync,
             Maybe<Log> logger,
             Maybe<TaskScheduler> scheduler)
         {
             _observers = new ConcurrentBag<Subscriber>();
             _connectionFactory = connectionFactory.AssertValue();
-            _openAsync = openAsync.AssertValue();
-            _executeNonQueryAsync = executeNonQueryAsync.AssertValue();
+            _openAsync = openAsync;
+            _executeNonQueryAsync = executeNonQueryAsync;
             _logger = logger;
             _scheduler = scheduler | TaskScheduler.Current;
 
-            _getMessage = new GetMessage(GetMessageFactory().Par(
-                _logger,
-                _connectionFactory,
-                _openAsync, 
-                _executeNonQueryAsync));
+            _getMessageAsync = _openAsync.Match(open =>
+                _executeNonQueryAsync.Match(exec =>
+                    new GetMessageAsync(GetMessageAsyncFactory().Par(
+                        _logger,
+                        _connectionFactory,
+                        open, 
+                        exec)),
+                    () => Maybe<GetMessageAsync>.None),
+                () => Maybe<GetMessageAsync>.None);
 
-            var endDialog = new EndDialog(EndDialogFactory().Par(
-                _logger,
-                _connectionFactory,
-                _openAsync,
-                _executeNonQueryAsync));
+            _getMessage = IsAsync
+                ? Maybe<GetMessage>.None
+                : new GetMessage(GetMessageFactory()
+                    .Par(_logger, _connectionFactory));
 
-            _composeProcessMessage = fun((CancellationToken token, IEnumerable<Subscriber> observers) => 
-                new ProcessMessageAsync(ProcessMessageAsyncFactory().Par(
+            var endDialogAsync = _openAsync.Match(open =>
+                _executeNonQueryAsync.Match(exec =>
+                    new EndDialogAsync(EndDialogAsyncFactory().Par(
+                        _logger,
+                        _connectionFactory,
+                        open,
+                        exec)),
+                    () => Maybe<EndDialogAsync>.None),
+                () => Maybe<EndDialogAsync>.None);
+
+            _composeProcessMessageAsync = endDialogAsync.Match(end => 
+                new ComposeProcessMessageAsync(fun((CancellationToken token, IEnumerable<Subscriber> observers) => 
+                    new ProcessMessageAsync(ProcessMessageAsyncFactory().Par(
                         _logger,
                         _scheduler,
                         token,
-                        endDialog,
-                        observers)));
+                        end,
+                        observers)))),
+                () => Maybe<ComposeProcessMessageAsync>.None);
+
+            var endDialog = IsAsync
+                ? Maybe<EndDialog>.None
+                : new EndDialog(EndDialogFactory().Par(_logger, _connectionFactory));
+
+            _composeProcessMessage = endDialog.Match(end =>
+                new ComposeProcessMessage(fun((CancellationToken token, IEnumerable<Subscriber> observers) =>
+                    new ProcessMessage(ProcessMessageFactory().Par(
+                        _logger,
+                        _scheduler,
+                        token,
+                        end,
+                        observers)))),
+                () => Maybe<ComposeProcessMessage>.None);
         }
+        
         #endregion
 
         /// <summary>
@@ -200,23 +270,16 @@ namespace Psns.Common.Clients.Broker
 
                 while (!_tokenSource.IsCancellationRequested)
                 {
-                    var result = _getMessage(queueName).Match(
-                        success: message =>
-                        {
-                            if (message != BrokerMessage.Empty)
-                            {
-                                _logger.Debug($"getMessage success: {message}");
-                            }
-
-                            return QueueForProcessing(message, cancelToken);
-                        },
-                        fail: exception =>
-                            _logger.Debug(cancelToken.IsCancellationRequested, $"getMessage fail: {exception.GetExceptionChainMessagesWithSql()}")
-                            ? Unit.Tap(_ => _logger.Error(exception.Message)).AsTask()
-                            : _observers.Iter(
-                                obs => obs.OnError(exception), 
-                                cancelToken, 
-                                _scheduler)).Result.Result;
+                    var result = _getMessageAsync.Match(
+                        some: get => get(queueName).Match(
+                            success: msg => QueueForProcessing(_logger.Debug(msg, "getMessageAsync success"), cancelToken), 
+                            fail: exception => _logger.Debug(ProcessException(exception, cancelToken), $"getMessageAsync fail with: {exception.GetExceptionChainMessagesWithSql()}")).Result,
+                        none: () => _getMessage.Match(
+                            some: get => get(queueName).Match(
+                                success: msg => QueueForProcessing(_logger.Debug(msg, "getMessage success"), cancelToken),
+                                fail: exception => _logger.Debug(ProcessException(exception, cancelToken), $"getMessageAsync fail with: {exception.GetExceptionChainMessagesWithSql()}")),
+                            none: () => Unit.AsTask()))
+                        .ContinueWith(task => Unit.Tap(_ => _logger.Debug("Message processing worker completed")));
                 }
 
                 _logger.Debug("Receiver cancelling");
@@ -245,21 +308,40 @@ namespace Psns.Common.Clients.Broker
         /// <param name="token"></param>
         /// <returns></returns>
         Task<UnitValue> QueueForProcessing(BrokerMessage message, CancellationToken token) =>
-            Map(_composeProcessMessage(token, _observers), processMessage =>
-                    Task.Factory.StartNew(() =>
-                        processMessage(message)
-                            .Match(
-                                success: _ =>
-                                    _logger.Debug(Unit, "processMessage success"),
-                                fail: exception =>
-                                    _logger.Debug(_observers, $"processMessage fail: {exception.Message}").Iter(obs =>
-                                        obs.SendError(exception, _logger),
-                                        token,
-                                        _scheduler).Result).Result,
-                                token,
-                                TaskCreationOptions.AttachedToParent,
-                                _scheduler)
-                        .ContinueWith(task => Unit.Tap(_ => _logger.Debug("Message processing worker completed"))));
+            IsAsync
+            ? _composeProcessMessageAsync.Match(compose => Map(compose(token, _observers), processMessage =>
+                  Task.Factory.StartNew(() =>
+                      processMessage(message)
+                          .Match(
+                              success: _ =>
+                                  _logger.Debug(Unit, "processMessageAsync success"),
+                              fail: exception =>
+                                  _logger.Debug(
+                                      ProcessException(exception, token).Result,
+                                      $"processMessageAsync fail: {exception.GetExceptionChainMessagesWithSql()}")).Result,
+                              token,
+                              TaskCreationOptions.AttachedToParent,
+                              _scheduler)),
+                () => Unit.AsTask())
+            : _composeProcessMessage.Match(compose => Map(compose(token, _observers), processMessage =>
+                Task.Factory.StartNew(() =>
+                    processMessage(message).Match(
+                        success: _ => _logger.Debug(Unit, "processMessage success"),
+                        fail: exception => _logger.Debug(
+                            ProcessException(exception, token).Result, 
+                            $"processMessage fail with: {exception.GetExceptionChainMessagesWithSql()}")),
+                    token,
+                    TaskCreationOptions.AttachedToParent,
+                    _scheduler)),
+                () => Unit.AsTask());
+
+        Task<UnitValue> ProcessException(Exception exception, CancellationToken token) =>
+            token.IsCancellationRequested
+                ? Unit.Tap(_ => _logger.Error(exception.GetExceptionChainMessagesWithSql())).AsTask()
+                : _observers.Iter(obs =>
+                    obs.SendError(exception, _logger),
+                    token,
+                    _scheduler);
 
         /// <summary>
         /// A list of the current Subscribers

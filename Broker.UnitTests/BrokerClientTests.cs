@@ -191,7 +191,7 @@ namespace FluentBrokerClients.UnitTests
         }
 
         [Test]
-        public async Task StopReceiving_NoErrors_ResultIsNotFailure_SubscribersCleared()
+        public void StopReceiving_NoErrors_ResultIsNotFailure_SubscribersCleared()
         {
             var mocks = CreateMocks();
 
@@ -202,23 +202,23 @@ namespace FluentBrokerClients.UnitTests
 
             client.Subscribe(CreateObserver());
 
-            Expect((await client.ReceiveMessages(QueueName).StopReceiving()).Failed, False);
+            Expect(client.ReceiveMessages(QueueName).StopReceiving().Failed, False);
             Expect(client.Subscribers.Count, EqualTo(0));
         }
 
         [Test]
-        public async Task StopReceiving_AlreadyBeenCalled_ThrowsException()
+        public void StopReceiving_AlreadyBeenCalled_ThrowsException()
         {
             AddSubscriber();
 
             var running = _client.ReceiveMessages(QueueName);
-            var result = await running.StopReceiving();
+            var result = running.StopReceiving();
 
             Expect(() => running.StopReceiving(), Throws.InvalidOperationException);
         }
 
         [Test]
-        public async Task StopReceiving_WithError_ResultIsFailure_SubscribersCleared()
+        public void StopReceiving_WithError_ResultIsFailure_SubscribersCleared()
         {
             Enumerable.Range(1, 2).Iter(i =>
             {
@@ -227,7 +227,7 @@ namespace FluentBrokerClients.UnitTests
                 _client.Subscribe(observer.Object);
             });
 
-            var result = await _client.ReceiveMessages(QueueName).StopReceiving();
+            var result = _client.ReceiveMessages(QueueName).StopReceiving();
 
             Expect(result.Failed, True);
             Expect(result.Exceptions.InnerExceptions.Count, EqualTo(2));
@@ -240,7 +240,7 @@ namespace FluentBrokerClients.UnitTests
         }
 
         [Test]
-        public async Task StopReceiving_WithErrorAndSuccess_ResultIsFailure_SubscribersCleared()
+        public void StopReceiving_WithErrorAndSuccess_ResultIsFailure_SubscribersCleared()
         {
             Enumerable.Range(1, 2).Iter(i => AddSubscriber());
 
@@ -251,7 +251,7 @@ namespace FluentBrokerClients.UnitTests
                 _client.Subscribe(observer.Object);
             });
 
-            var result = await _client.ReceiveMessages(QueueName).StopReceiving();
+            var result = _client.ReceiveMessages(QueueName).StopReceiving();
 
             Expect(result.Failed, True);
             Expect(result.Exceptions.InnerExceptions.Count, EqualTo(2));
@@ -332,7 +332,7 @@ namespace FluentBrokerClients.UnitTests
         }
 
         [Test]
-        public async Task ReceiveMessages_CommandCorrect_ObserversOnNextCalled()
+        public void ReceiveMessages_CommandCorrect_ObserversOnNextCalled()
         {
             var mocks = CreateMocks(MessageType);
             var mockConnection = mocks.Item1;
@@ -349,7 +349,7 @@ namespace FluentBrokerClients.UnitTests
             client.Subscribe(mockObserver.Object);
             var running = client.ReceiveMessages(QueueName);
             _wait.WaitOne();
-            await running.StopReceiving();
+            running.StopReceiving();
 
             mockObserver.Verify(o => o.OnNext(It.Is<BrokerMessage>(m => m.MessageType == MessageType)));
 
@@ -357,7 +357,7 @@ namespace FluentBrokerClients.UnitTests
         }
 
         [Test]
-        public async Task ReceiveMessages_ObserverOnNextErrors_ObserversOnErrorsCalled()
+        public void ReceiveMessages_ObserverOnNextErrors_ObserversOnErrorsCalled()
         {
             var mockObserver = CreateMockObserver();
             mockObserver.SetupSequence(o => o.OnNext(It.IsAny<BrokerMessage>()))
@@ -368,7 +368,7 @@ namespace FluentBrokerClients.UnitTests
             _client.Subscribe(mockObserver.Object);
             var running = _client.ReceiveMessages("TestQueue");
             _wait.WaitOne();
-            await running.StopReceiving();
+            running.StopReceiving();
 
             mockObserver.Verify(o => o.OnError(It.Is<Exception>(e => e.Message == FailVal)));
 
@@ -376,7 +376,7 @@ namespace FluentBrokerClients.UnitTests
         }
 
         [Test]
-        public async Task ReceiveMessages_SBErrorMessageReceived_ObserversOnErrorsCalled()
+        public void ReceiveMessages_SBErrorMessageReceived_ObserversOnErrorsCalled()
         {
             var mockObserver = CreateMockObserver();
             mockObserver.Setup(o => o.OnError(It.IsAny<Exception>())).Callback(() => _wait.Set());
@@ -387,7 +387,7 @@ namespace FluentBrokerClients.UnitTests
             client.Subscribe(mockObserver.Object);
             var running = client.ReceiveMessages(QueueName);
             _wait.WaitOne();
-            await running.StopReceiving();
+            running.StopReceiving();
 
             mockObserver.Verify(o => o.OnError(It.Is<Exception>(e => e.Message == MessageText)));
 
@@ -395,7 +395,7 @@ namespace FluentBrokerClients.UnitTests
         }
 
         [Test]
-        public async Task ReceiveMessages_SBEndDialogMessageReceived_EndDialogCalled()
+        public void ReceiveMessages_SBEndDialogMessageReceived_EndDialogCalled()
         {
             var mockObserver = CreateMockObserver();
             var mocks = CreateMocks(ServiceBrokerEndDialogMessageType);
@@ -419,14 +419,14 @@ namespace FluentBrokerClients.UnitTests
             client.Subscribe(mockObserver.Object);
             var running = client.ReceiveMessages(QueueName);
             _wait.WaitOne();
-            await running.StopReceiving();
+            running.StopReceiving();
 
             ExpectEndDialog(mocks);
             ExpectAllDisposed(mocks);
         }
 
         [Test]
-        public async Task ReceiveMessages_ObserverOnErrorErrors_ErrorLogged()
+        public void ReceiveMessages_ObserverOnErrorErrors_ErrorLogged()
         {
             var mockLogger = new Mock<Log>();
 
@@ -457,7 +457,7 @@ namespace FluentBrokerClients.UnitTests
             client.Subscribe(mockObserver.Object);
             var running = client.ReceiveMessages("TestQueue");
             _wait.WaitOne();
-            await running.StopReceiving();
+            running.StopReceiving();
 
             mockObserver.Verify(o => o.OnError(It.Is<Exception>(e => e.Message == FailVal)));
             mockLogger.Verify(l => l(It.IsRegex($"{FailVal} 2"), GeneralLogCategory, TraceEventType.Error));
@@ -466,7 +466,7 @@ namespace FluentBrokerClients.UnitTests
         }
 
         [Test]
-        public async Task ReceiveMessages_OpenAsyncThrows_ObserversOnErrorCalled()
+        public void ReceiveMessages_OpenAsyncThrows_ObserversOnErrorCalled()
         {
             _mockOpenAsync.Setup(f => f(It.IsAny<IDbConnection>())).ThrowsAsync(new Exception(FailVal));
 
@@ -477,13 +477,13 @@ namespace FluentBrokerClients.UnitTests
             _client.Subscribe(mockObserver.Object);
             var running = _client.ReceiveMessages("TestQueue");
             _wait.WaitOne();
-            await running.StopReceiving();
+            running.StopReceiving();
 
             mockObserver.Verify(o => o.OnError(It.Is<Exception>(m => m.Message == FailVal)));
         }
 
         [Test]
-        public async Task ReceiveMessages_BeginTransactionThrows_ObserversOnErrorCalled()
+        public void ReceiveMessages_BeginTransactionThrows_ObserversOnErrorCalled()
         {
             _mockConnection.Setup(c => c.BeginTransaction()).Throws(new Exception(FailVal));
 
@@ -494,7 +494,7 @@ namespace FluentBrokerClients.UnitTests
             _client.Subscribe(mockObserver.Object);
             var running = _client.ReceiveMessages("TestQueue");
             _wait.WaitOne();
-            await running.StopReceiving();
+            running.StopReceiving();
 
             mockObserver.Verify(o => o.OnError(It.Is<Exception>(m => m.Message == FailVal)));
 
@@ -502,7 +502,7 @@ namespace FluentBrokerClients.UnitTests
         }
 
         [Test]
-        public async Task ReceiveMessages_CreateCommandThrows_ObserversOnErrorCalled()
+        public void ReceiveMessages_CreateCommandThrows_ObserversOnErrorCalled()
         {
             _mockConnection.Setup(c => c.CreateCommand()).Throws(new Exception(FailVal));
 
@@ -513,7 +513,7 @@ namespace FluentBrokerClients.UnitTests
             _client.Subscribe(mockObserver.Object);
             var running = _client.ReceiveMessages("TestQueue");
             _wait.WaitOne();
-            await running.StopReceiving();
+            running.StopReceiving();
 
             mockObserver.Verify(o => o.OnError(It.Is<Exception>(m => m.Message == FailVal)));
 
@@ -522,7 +522,7 @@ namespace FluentBrokerClients.UnitTests
         }
 
         [Test]
-        public async Task ReceiveMessages_ExeQueryErrors_ObserversOnErrorCalled()
+        public void ReceiveMessages_ExeQueryErrors_ObserversOnErrorCalled()
         {
             var mockObserver = CreateMockObserver();
 
@@ -534,7 +534,7 @@ namespace FluentBrokerClients.UnitTests
             _client.Subscribe(mockObserver.Object);
             var running = _client.ReceiveMessages("TestQueue");
             _wait.WaitOne();
-            await running.StopReceiving();
+            running.StopReceiving();
 
             mockObserver.Verify(o => o.OnError(It.Is<Exception>(m => m.Message == FailVal)));
 
@@ -543,7 +543,7 @@ namespace FluentBrokerClients.UnitTests
         }
 
         [Test]
-        public async Task ReceiveMessages_ExeQueryFirstParamIsDBNull_ObserverOnNextNotCalled()
+        public void ReceiveMessages_ExeQueryFirstParamIsDBNull_ObserverOnNextNotCalled()
         {
             var mocks = CreateMocks();
             var mockConnection = mocks.Item1;
@@ -560,7 +560,7 @@ namespace FluentBrokerClients.UnitTests
             client.Subscribe(mockObserver.Object);
             var running = client.ReceiveMessages(QueueName);
             _wait.WaitOne();
-            await running.StopReceiving();
+            running.StopReceiving();
 
             mockObserver.Verify(o => o.OnNext(It.Is<BrokerMessage>(msg => msg == BrokerMessage.Empty)), Times.Never());
 

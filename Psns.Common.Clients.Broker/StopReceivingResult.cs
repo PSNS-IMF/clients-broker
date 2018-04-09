@@ -48,26 +48,16 @@ namespace Psns.Common.Clients.Broker
         static bool IsCancellation(Exception exception) =>
             Map(
                 Cons(typeof(TaskCanceledException), typeof(OperationCanceledException)),
-                types => types.Contains(exception.GetType()));
+                types => types.Contains(exception.GetType()) || HasCancellation(exception));
+
+        static bool HasCancellation(Exception exception) =>
+            exception is AggregateException
+                && IsCancellation((exception as AggregateException).InnerException);
     }
 
     public static partial class AppPrelude
     {
         public static StopReceivingResult Append(this StopReceivingResult self, Try<UnitValue> next) =>
-            self.Append(next);
-
-        public static async Task<StopReceivingResult> Append(this StopReceivingResult self, TryAsync<UnitValue> next) =>
-            self.Append(await next.FromAsync());
-
-        public static async Task<StopReceivingResult> Append(this Task<StopReceivingResult> self, Try<UnitValue> next) =>
-            (await self).Append(new StopReceivingResult(next));
-
-        public static async Task<StopReceivingResult> Append(this Task<StopReceivingResult> self, StopReceivingResult next) =>
-            (await self).Append(next);
-
-        public static async Task<StopReceivingResult> FromAsync(this TryAsync<UnitValue> attempt) =>
-            await attempt.Match(
-                res => new StopReceivingResult(() => res),
-                e => new StopReceivingResult(ImmutableList.Create(e)));
+            self.Append(new StopReceivingResult(next));
     }
 }

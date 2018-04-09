@@ -48,8 +48,8 @@ let ``it should call observers independently.`` () =
     let finalConnection = connection.Setup(fun conn -> <@ conn.BeginTransaction() @>).Returns(transaction)
 
     let factory = Func<IDbConnection> (fun () -> finalConnection.Create())
-    let openAsync = new OpenAsync(fun conn -> conn.AsTask())
-    let execQueryAsync = new ExecuteNonQueryAsync(fun _ -> Task.FromResult(0))
+    let openAsync = ex.Some(new OpenAsync(fun conn -> conn.AsTask()))
+    let execQueryAsync = ex.Some(new ExecuteNonQueryAsync(fun _ -> Task.FromResult(0)))
     let client = new BrokerClient(factory, openAsync, execQueryAsync, ex.Some(log), Maybe<TaskScheduler>.None)
 
     let observer = Mock<IObserver<BrokerMessage>>().Setup(fun o -> <@ o.OnNext(any()) @>).Calls<unit>(fun _ ->
@@ -61,7 +61,7 @@ let ``it should call observers independently.`` () =
     let running = client.ReceiveMessages("queue")
     resetEvent.WaitOne() |> ignore
 
-    running.StopReceiving().Result.Failed |> should equal false
+    running.StopReceiving().Failed |> should equal false
     verify <@ observer.OnNext(is(fun msg -> msg.MessageType = "type")) @> atleastonce
     client.Subscribers.Count |> should equal 0
     entries |> List.contains "Calling Observers OnCompleted" |> should equal true
