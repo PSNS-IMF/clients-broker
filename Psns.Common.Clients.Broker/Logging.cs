@@ -14,7 +14,7 @@ namespace Psns.Common.Clients.Broker
             self.Log<T>(message, TraceEventType.Verbose);
 
         public static T Debug<T>(this Maybe<Log> self, T t, string message) =>
-            t.Tap(_ => self.Debug(message));
+            t.Tap(_ => self.Log<T>(message, TraceEventType.Verbose));
 
         public static T Info<T>(this Maybe<Log> self, T t) =>
             self.Log(t, TraceEventType.Information);

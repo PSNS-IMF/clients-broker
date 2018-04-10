@@ -58,7 +58,7 @@ namespace Psns.Common.Clients.Broker
             (log, connectionFactory, setupCommand, withCommand) =>
             {
                 var commitTransaction = fun((Func<IDbTransaction, Try<T>> func, IDbTransaction transaction) =>
-                    func(transaction).Regardless(Try(() => transaction.Commit())));
+                    new Try<T>(fun(() => func(transaction).Regardless(Try(() => transaction.Commit())).Try())));
                 var createCommand = CreateCommand<T>().Par(withCommand.Compose(setupCommand));
                 var runWithCommit = commitTransaction.Par(createCommand);
 
@@ -68,7 +68,7 @@ namespace Psns.Common.Clients.Broker
 
                 var connect = Connect<T>()
                     .Par(openConnection.Par(beginTransaction))
-                    .Compose(() => connectionFactory);
+                    .Compose(() => fun(() => connectionFactory().Tap(conn => log.Debug(conn, $"ConnectionString: {conn.ConnectionString}"))));
 
                 return connect();
             };

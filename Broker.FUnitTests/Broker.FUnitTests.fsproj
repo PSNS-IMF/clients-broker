@@ -58,6 +58,7 @@
     <Content Include="packages.config" />
     <Content Include="App.config" />
     <Compile Include="ClientTests.fs" />
+    <Compile Include="DBTests.fs" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="Foq">
@@ -74,7 +75,7 @@
       <HintPath>..\packages\NUnit.3.9.0\lib\net45\nunit.framework.dll</HintPath>
     </Reference>
     <Reference Include="Psns.Common.SystemExtensions">
-      <HintPath>..\packages\Psns.Common.SystemExtensions.2018.4.6.1\lib\net45\Psns.Common.SystemExtensions.dll</HintPath>
+      <HintPath>..\packages\Psns.Common.SystemExtensions.2018.4.10.2\lib\net45\Psns.Common.SystemExtensions.dll</HintPath>
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Collections.Immutable">
