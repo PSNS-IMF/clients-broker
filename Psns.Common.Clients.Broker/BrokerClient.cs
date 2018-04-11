@@ -285,14 +285,13 @@ namespace Psns.Common.Clients.Broker
                 {
                     var result = _getMessageAsync.Match(
                         some: get => get(queueName).Match(
-                            success: msg => QueueForProcessing(_logger.Debug(msg, "getMessageAsync success"), cancelToken), 
-                            fail: exception => _logger.Debug(ProcessException(exception, cancelToken), $"getMessageAsync fail with: {exception.GetExceptionChainMessagesWithSql()}")).Result,
+                            success: msg => QueueForProcessing(msg, cancelToken), 
+                            fail: exception => ProcessException(exception, cancelToken)).Result,
                         none: () => _getMessage.Match(
                             some: get => get(queueName).Match(
-                                success: msg => QueueForProcessing(_logger.Debug(msg, "getMessage success"), cancelToken),
-                                fail: exception => _logger.Debug(ProcessException(exception, cancelToken), $"getMessageAsync fail with: {exception.GetExceptionChainMessagesWithSql()}")),
-                            none: () => Unit.AsTask()))
-                        .ContinueWith(task => Unit.Tap(_ => _logger.Debug("Message processing worker completed")));
+                                success: msg => QueueForProcessing(msg, cancelToken),
+                                fail: exception => ProcessException(exception, cancelToken)),
+                            none: () => Unit.AsTask()));
                 }
 
                 _logger.Debug("Receiver cancelling");
@@ -326,12 +325,8 @@ namespace Psns.Common.Clients.Broker
                   Task.Factory.StartNew(() =>
                       processMessage(message)
                           .Match(
-                              success: _ =>
-                                  _logger.Debug(Unit, "processMessageAsync success"),
-                              fail: exception =>
-                                  _logger.Debug(
-                                      ProcessException(exception, token).Result,
-                                      $"processMessageAsync fail: {exception.GetExceptionChainMessagesWithSql()}")).Result,
+                              success: _ => Unit,
+                              fail: exception => ProcessException(exception, token).Result).Result,
                               token,
                               TaskCreationOptions.AttachedToParent,
                               _scheduler)),
@@ -339,10 +334,8 @@ namespace Psns.Common.Clients.Broker
             : _composeProcessMessage.Match(compose => Map(compose(token, _observers), processMessage =>
                 Task.Factory.StartNew(() =>
                     processMessage(message).Match(
-                        success: _ => _logger.Debug(Unit, "processMessage success"),
-                        fail: exception => _logger.Debug(
-                            ProcessException(exception, token).Result, 
-                            $"processMessage fail with: {exception.GetExceptionChainMessagesWithSql()}")),
+                        success: _ => Unit,
+                        fail: exception => ProcessException(exception, token).Result),
                     token,
                     TaskCreationOptions.AttachedToParent,
                     _scheduler)),

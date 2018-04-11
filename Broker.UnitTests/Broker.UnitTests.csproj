@@ -48,7 +48,7 @@
       <HintPath>..\packages\NUnit.StaticExpect.1.0.7\lib\net452\NUnit.StaticExpect.dll</HintPath>
     </Reference>
     <Reference Include="Psns.Common.SystemExtensions, Version=1.0.0.5, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\Psns.Common.SystemExtensions.2018.4.10.2\lib\net45\Psns.Common.SystemExtensions.dll</HintPath>
+      <HintPath>..\packages\Psns.Common.SystemExtensions.2018.4.11.5\lib\net45\Psns.Common.SystemExtensions.dll</HintPath>
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Configuration" />

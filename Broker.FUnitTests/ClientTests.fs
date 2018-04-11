@@ -4,6 +4,7 @@ open System
 open NUnit.Framework
 open FsUnit
 open System.Threading.Tasks
+open System.Collections.Generic
 open System.Data
 open Psns.Common.Clients.Broker
 open Psns.Common.Functional
@@ -18,6 +19,14 @@ type ex = Psns.Common.Functional.Prelude
 let ``it should call observers independently.`` () =
     let resetEvent = new AutoResetEvent false
 
+    let eCalls = ref 0
+    let mockParamEnumerator = Mock<IEnumerator<SqlParameter>>().Setup(fun e -> <@ e.Current @>).Returns(new SqlParameter())
+    let mockParamEnumerator = mockParamEnumerator.Setup(fun e -> <@ e.MoveNext() @>).Returns(fun () ->
+        incr eCalls
+        match eCalls.Value with
+            | 0 -> true
+            | _ -> false)
+
     let parms = Mock<IDataParameterCollection>().Setup(fun p -> <@ p.[It.IsAny<int>()] @>).Calls<int>(function
         | 0 -> (new SqlParameter("MessageType", "type") :> obj)
         | 1 -> (new SqlParameter("MessageType", "type") :> obj)
@@ -26,7 +35,7 @@ let ``it should call observers independently.`` () =
         | 4 -> (new SqlParameter("ConversationId", Guid.Empty) :> obj)
         | _ -> raise <| ArgumentOutOfRangeException("index"))
 
-    let finalparms = parms.Setup(fun p -> <@ p.Add(any()) @>).Calls<obj>(fun o ->
+    let parms = parms.Setup(fun p -> <@ p.Add(any()) @>).Calls<obj>(fun o ->
         (o :?> SqlParameter).SqlDbType |> function
             | SqlDbType.NVarChar ->
                 (o :?> SqlParameter).Value |> function
@@ -36,13 +45,15 @@ let ``it should call observers independently.`` () =
                         | "" -> (o :?> SqlParameter).Value <- "string"; 1
                         | _ -> 0
             | _ -> 0)
+
+    let parms = parms.Setup(fun p -> <@ p.GetEnumerator() @>).Returns(mockParamEnumerator.Create())
         
     let mutable entries = List.empty<string>
-    let log = new Log(fun msg -> fun cat -> fun eType -> 
+    let log = new Log(fun msg -> fun cat -> fun eType ->
         entries <- List.Cons(msg, entries)
         ())
 
-    let command = Mock<IDbCommand>().Setup(fun cmd -> <@ cmd.Parameters @>).Returns(finalparms.Create()).Create()
+    let command = Mock<IDbCommand>().Setup(fun cmd -> <@ cmd.Parameters @>).Returns(parms.Create()).Create()
     let connection = Mock<IDbConnection>().Setup(fun conn -> <@ conn.CreateCommand() @>).Returns(command)
     let transaction = Mock<IDbTransaction>().Setup(fun trans -> <@ trans.Connection @>).Returns(connection.Create()).Create()
     let finalConnection = connection.Setup(fun conn -> <@ conn.BeginTransaction() @>).Returns(transaction)

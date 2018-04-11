@@ -68,7 +68,7 @@ namespace Psns.Common.Clients.Broker
 
                 var connect = Connect<T>()
                     .Par(openConnection.Par(beginTransaction))
-                    .Compose(() => fun(() => connectionFactory().Tap(conn => log.Debug(conn, $"ConnectionString: {conn.ConnectionString}"))));
+                    .Compose(() => fun(() => connectionFactory()));
 
                 return connect();
             };
@@ -78,9 +78,10 @@ namespace Psns.Common.Clients.Broker
         /// </summary>
         /// <returns>BrokerMessage</returns>
         public static Func<
+            Maybe<Log>,
             ExecuteNonQueryAsync,
             IDbCommand,
-            Task<BrokerMessage>> RunReceiveCommandFactory() => async (executeNonQueryAsync, command) =>
+            Task<BrokerMessage>> RunReceiveCommandFactory() => async (log, executeNonQueryAsync, command) =>
                 {
                     var message = BrokerMessage.Empty;
                     var result = await executeNonQueryAsync(command);
@@ -88,6 +89,8 @@ namespace Psns.Common.Clients.Broker
 
                     if (!(parameters[0].AsSqlParameter().Value is DBNull))
                     {
+                        log.Debug(command.ToLogString(nameof(RunReceiveCommandFactory)));
+
                         message = new BrokerMessage(
                             parameters[0].AsSqlParameter().Value.ToString(),
                             parameters[1].AsSqlParameter().Value.ToString(),
@@ -136,13 +139,13 @@ namespace Psns.Common.Clients.Broker
         ///     to end a given Service Broker Conversation.
         /// </summary>
         /// <returns></returns>
-        public static Func<Guid, IDbCommand, IDbCommand> SetupEndDialog() => (conversationId, command) =>
+        public static Func<Maybe<Log>, Guid, IDbCommand, IDbCommand> SetupEndDialog() => (log, conversationId, command) =>
         {
             command.Parameters.Add(new SqlParameter("@conversation", conversationId));
 
             command.CommandText = "END CONVERSATION @conversation";
 
-            return command;
+            return log.Debug(command, command.ToLogString(nameof(SetupEndDialog)));
         };
     }
 
@@ -150,10 +153,5 @@ namespace Psns.Common.Clients.Broker
     {
         public static SqlParameter AsSqlParameter(this object obj) =>
             (obj as SqlParameter) ?? new SqlParameter(string.Empty, DBNull.Value);
-
-        public static string ToLogString(this IDbCommand self, Maybe<string> callerName) =>
-            $@"{callerName} -> Param Count: {self?.Parameters?.Count.ToString() ?? "Null"} Connection State: {
-                self?.Connection?.State.ToString() ?? "Null"} Transaction Isolation Leve: {
-                self?.Transaction?.IsolationLevel.ToString() ?? "Null"}";
     }
 }

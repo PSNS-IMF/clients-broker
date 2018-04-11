@@ -50,6 +50,14 @@ namespace FluentBrokerClients.UnitTests
             _mockTransaction.SetupGet(t => t.Connection).Returns(_mockConnection.Object);
             _mockCommand.SetupGet(c => c.Parameters).Returns(_mockParams.Object);
 
+            var mockEnumerator = new Mock<IEnumerator<SqlParameter>>();
+            mockEnumerator.SetupGet(e => e.Current).Returns(new SqlParameter());
+            mockEnumerator.SetupSequence(e => e.MoveNext())
+                .Returns(true)
+                .Returns(false);
+
+            _mockParams.Setup(p => p.GetEnumerator()).Returns(mockEnumerator.Object);
+
             _mockParams.Setup(p => p[It.IsAny<int>()]).Returns((int index) =>
             {
                 var param = new SqlParameter();
@@ -111,6 +119,15 @@ namespace FluentBrokerClients.UnitTests
         {
             var addedParams = new Dictionary<string, SqlParameter>();
             var mockParams = new Mock<IDataParameterCollection>();
+
+            var mockEnumerator = new Mock<IEnumerator<SqlParameter>>();
+            mockEnumerator.SetupGet(e => e.Current).Returns(new SqlParameter());
+            mockEnumerator.SetupSequence(e => e.MoveNext())
+                .Returns(true)
+                .Returns(false);
+
+            mockParams.Setup(p => p.GetEnumerator()).Returns(mockEnumerator.Object);
+
             mockParams.Setup(p => p[It.IsAny<int>()]).Returns((int index) =>
             {
                 var param = new SqlParameter();

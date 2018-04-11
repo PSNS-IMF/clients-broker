@@ -60,14 +60,14 @@ namespace Psns.Common.Clients.Broker
         /// Gets a message from a Service Broker Queue.
         /// </summary>
         /// <returns></returns>
-        public static Func<Maybe<Log>, Func<IDbConnection>, OpenAsync, ExecuteNonQueryAsync, string, TryAsync<BrokerMessage>> GetMessageAsyncFactory() => 
+        public static Func<Maybe<Log>, Func<IDbConnection>, OpenAsync, ExecuteNonQueryAsync, string, TryAsync<BrokerMessage>> GetMessageAsyncFactory() =>
             (log, connectionFactory, openAsync, exeAsync, queueName) =>
                 CommandFactoryAsync<BrokerMessage>()(
                     log,
                     connectionFactory,
                     openAsync,
                     SetupReceive().Par(queueName.AssertValue()),
-                    RunReceiveCommandFactory().Par(exeAsync));
+                    RunReceiveCommandFactory().Par(log, exeAsync));
 
         /// <summary>
         /// Gets a message from a Service Broker Queue.
@@ -80,7 +80,7 @@ namespace Psns.Common.Clients.Broker
                     connectionFactory,
                     SetupReceive().Par(queueName.AssertValue()),
                     cmd => RunReceiveCommandFactory()
-                        .Par(new ExecuteNonQueryAsync(c => c.ExecuteNonQuery().AsTask()))(cmd)
+                        .Par(log, new ExecuteNonQueryAsync(c => c.ExecuteNonQuery().AsTask()))(cmd)
                         .Result);
 
         /// <summary>
@@ -93,7 +93,7 @@ namespace Psns.Common.Clients.Broker
                     log,
                     connectionFactory,
                     openAsync,
-                    SetupEndDialog().Par(conversationId.AssertValue()),
+                    SetupEndDialog().Par(log, conversationId.AssertValue()),
                     async cmd => { await exeAsync(cmd); return Unit; });
 
         /// <summary>
@@ -105,7 +105,7 @@ namespace Psns.Common.Clients.Broker
                 CommandFactory<UnitValue>()(
                     log,
                     connectionFactory,
-                    SetupEndDialog().Par(conversationId.AssertValue()),
+                    SetupEndDialog().Par(log, conversationId.AssertValue()),
                     cmd => Unit.Tap(_ => cmd.ExecuteNonQuery()));
 
         /// <summary>
@@ -115,12 +115,12 @@ namespace Psns.Common.Clients.Broker
         /// </summary>
         /// <returns></returns>
         public static Func<
-            Maybe<Log>, 
+            Maybe<Log>,
             TaskScheduler,
             CancellationToken,
-            EndDialogAsync, 
-            IEnumerable<IObserver<BrokerMessage>>, 
-            BrokerMessage, 
+            EndDialogAsync,
+            IEnumerable<IObserver<BrokerMessage>>,
+            BrokerMessage,
             TryAsync<UnitValue>> ProcessMessageAsyncFactory() =>
             (logger, scheduler, cancelToken, endDialog, observers, message) =>
                 Match(
@@ -129,9 +129,9 @@ namespace Psns.Common.Clients.Broker
                         logger.Debug(
                             endDialog(message.Conversation).Bind(async u =>
                                 {
-                                    var result = UnitValue.Default.AsTask();    
+                                    var result = UnitValue.Default.AsTask();
 
-                                    switch(message.MessageType)
+                                    switch (message.MessageType)
                                     {
                                         case ServiceBrokerErrorMessageType:
                                             result = logger.Debug(observers, "Calling Observers OnError")
