@@ -66,8 +66,7 @@ namespace Psns.Common.Clients.Broker
             }
 
             return new StopReceivingResult(Try(() => tokenSource.Cancel()))
-                .Append(Try(() => { worker.Wait(); return Unit; }))
-                .Append(Try(() => { worker.Dispose(); _logger.Debug("Receiver stopped"); }))
+                .Append(Try(() => { worker.Wait(); _logger.Debug("Receiver stopped"); }))
                 .Append(Try(() => tokenSource.Dispose()))
                 .Append(
                     _logger.Debug(observers, "Calling Observers OnCompleted").Aggregate(

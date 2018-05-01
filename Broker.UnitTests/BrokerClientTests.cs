@@ -167,7 +167,7 @@ namespace FluentBrokerClients.UnitTests
             mockConnection.Setup(c => c.BeginTransaction()).Returns(mockTransaction.Object);
             mockTransaction.Setup(t => t.Connection).Returns(mockConnection.Object);
 
-            return Tuple.Create(mockConnection, mockTransaction, mockCommand, mockParams, addedParams);
+            return System.Tuple.Create(mockConnection, mockTransaction, mockCommand, mockParams, addedParams);
         }
     }
 
@@ -317,7 +317,7 @@ namespace FluentBrokerClients.UnitTests
             Expect(
                 Enumerable.SequenceEqual(
                     addedParams.Select(p => p.Key),
-                    new[] { "@contract", "@messageType", "@message", "@conversationGroup", "@conversation" }),
+                    Cons("@contract", "@messageType", "@message", "@conversationGroup", "@conversation")),
                 True);
 
             Expect(

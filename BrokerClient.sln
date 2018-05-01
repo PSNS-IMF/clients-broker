@@ -3,8 +3,6 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 15
 VisualStudioVersion = 15.0.27428.2015
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Psns.Common.Clients.Broker", "Psns.Common.Clients.Broker\Psns.Common.Clients.Broker.csproj", "{94F64F0D-CE7A-4A77-AE0F-939F88A52DB0}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Broker.UnitTests", "Broker.UnitTests\Broker.UnitTests.csproj", "{8EDF4429-251A-416D-BB68-93F227191BCF}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{22B6211C-CCD7-4571-97D5-F0F1CBEA7557}"
@@ -21,16 +19,14 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 EndProject
 Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Broker.FUnitTests", "Broker.FUnitTests\Broker.FUnitTests.fsproj", "{78992F6B-9228-401A-AF08-40FCF171890C}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Psns.Common.Clients.Broker", "Psns.Common.Clients.Broker\Psns.Common.Clients.Broker.csproj", "{FB23A82D-D0D2-402F-805C-D31CAA19AFF1}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
 		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{94F64F0D-CE7A-4A77-AE0F-939F88A52DB0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{94F64F0D-CE7A-4A77-AE0F-939F88A52DB0}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{94F64F0D-CE7A-4A77-AE0F-939F88A52DB0}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{94F64F0D-CE7A-4A77-AE0F-939F88A52DB0}.Release|Any CPU.Build.0 = Release|Any CPU
 		{8EDF4429-251A-416D-BB68-93F227191BCF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{8EDF4429-251A-416D-BB68-93F227191BCF}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{8EDF4429-251A-416D-BB68-93F227191BCF}.Release|Any CPU.ActiveCfg = Release|Any CPU
@@ -39,17 +35,21 @@ Global
 		{78992F6B-9228-401A-AF08-40FCF171890C}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{78992F6B-9228-401A-AF08-40FCF171890C}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{78992F6B-9228-401A-AF08-40FCF171890C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{FB23A82D-D0D2-402F-805C-D31CAA19AFF1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FB23A82D-D0D2-402F-805C-D31CAA19AFF1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FB23A82D-D0D2-402F-805C-D31CAA19AFF1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FB23A82D-D0D2-402F-805C-D31CAA19AFF1}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
-		{94F64F0D-CE7A-4A77-AE0F-939F88A52DB0} = {22B6211C-CCD7-4571-97D5-F0F1CBEA7557}
 		{8EDF4429-251A-416D-BB68-93F227191BCF} = {063176DC-79D4-483C-BBD5-6BDC76EC8271}
 		{78992F6B-9228-401A-AF08-40FCF171890C} = {063176DC-79D4-483C-BBD5-6BDC76EC8271}
+		{FB23A82D-D0D2-402F-805C-D31CAA19AFF1} = {22B6211C-CCD7-4571-97D5-F0F1CBEA7557}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
-		SolutionGuid = {0AAE6725-6A64-4911-835F-447F70B5BCB6}
 		EnterpriseLibraryConfigurationToolBinariesPath = packages\Unity.2.1.505.0\lib\NET35;packages\Unity.Interception.2.1.505.0\lib\NET35;packages\EnterpriseLibrary.Common.5.0.505.0\lib\NET35;packages\EnterpriseLibrary.Logging.5.0.505.1\lib\NET35
+		SolutionGuid = {0AAE6725-6A64-4911-835F-447F70B5BCB6}
 	EndGlobalSection
 EndGlobal

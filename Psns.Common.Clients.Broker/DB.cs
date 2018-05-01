@@ -109,14 +109,12 @@ namespace Psns.Common.Clients.Broker
         /// <returns></returns>
         public static Func<string, IDbCommand, IDbCommand> SetupReceive() => (queueName, command) =>
         {
-            new[]
-            {
+            Cons(
                 new SqlParameter("@contract", SqlDbType.NVarChar, 128),
                 new SqlParameter("@messageType", SqlDbType.NVarChar, 256),
                 new SqlParameter("@message", SqlDbType.NVarChar, -1), // -1 is nvarchar(max)
                 new SqlParameter("@conversationGroup", SqlDbType.UniqueIdentifier),
-                new SqlParameter("@conversation", SqlDbType.UniqueIdentifier)
-            }
+                new SqlParameter("@conversation", SqlDbType.UniqueIdentifier))
             .Iter(param =>
             {
                 param.Direction = ParameterDirection.Output;
