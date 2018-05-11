@@ -27,13 +27,13 @@ namespace Psns.Common.Clients.Broker
     public class RunningBrokerClient : IRunningBrokerClient
     {
         readonly Maybe<Log> _logger;
-        readonly Maybe<IProducerConsumerCollection<IObserver<BrokerMessage>>> _observers;
+        readonly Maybe<IProducerConsumerCollection<IBrokerObserver>> _observers;
         readonly Maybe<Task> _worker;
         readonly Maybe<CancellationTokenSource> _tokenSource;
 
         internal RunningBrokerClient(
             Maybe<Log> logger,
-            Maybe<IProducerConsumerCollection<IObserver<BrokerMessage>>> observers,
+            Maybe<IProducerConsumerCollection<IBrokerObserver>> observers,
             Maybe<Task> worker,
             CancellationTokenSource tokenSource)
         {
@@ -58,7 +58,7 @@ namespace Psns.Common.Clients.Broker
 
             var tokenSource = _tokenSource | CancellationTokenSource.CreateLinkedTokenSource(CancellationToken.None);
             var worker = _worker | Task.Delay(0);
-            var observers = _observers.Match(s => s, () => new ConcurrentBag<IObserver<BrokerMessage>>());
+            var observers = _observers.Match(s => s, () => new ConcurrentBag<IBrokerObserver>());
 
             if (worker.IsCompleted)
             {
@@ -76,7 +76,7 @@ namespace Psns.Common.Clients.Broker
                 .Append(
                     new StopReceivingResult(Try(() =>
                     {
-                        IObserver<BrokerMessage> removing;
+                        IBrokerObserver removing;
                         while (observers.TryTake(out removing)) { };
                         _logger.Debug("All Observers Removed");
                     })));

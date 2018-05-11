@@ -10,6 +10,10 @@
     <projectUrl>https://github.com/PSNS-IMF/clients-broker</projectUrl>
     <licenseUrl>https://github.com/PSNS-IMF/clients-broker/blob/master/LICENSE.md</licenseUrl>
     <releaseNotes>
+      ## 2.0.0.3
+      ### Features
+      * Include BrokerMessage with Observer.OnError calls
+
       ## 2.0.0.2
       ### Features
       * Updated to latest SystemExtensions
@@ -37,13 +41,13 @@
         <dependency id="NETStandard.Library" version="2.0.2" exclude="Build,Analyzers" />
       </group>
       <group>
-        <dependency id="Psns.Common.SystemExtensions" version="2018.5.1.2" />
+        <dependency id="Psns.Common.SystemExtensions" version="2018.5.1.2" exclude="Build,Analyzers" />
         <dependency id="System.Collections.Immutable" version="1.4.0" exclude="Build,Analyzers" />
         <dependency id="System.Diagnostics.Contracts" version="4.3.0" exclude="Build,Analyzers" />
       </group>
     </dependencies>
   </metadata>
   <files>
-    <file src="Psns.Common.Clients.Broker\bin\$configuration$\**\Psns.Common.Clients.Broker.*" target="lib\" exclude="**\*.dll.config;**\*Tests*;**\*Test*" />
+    <file src="Psns.Common.Clients.Broker\bin\$configuration$\**\Psns.Common.Clients.Broker.*" target="lib\" exclude="**\*.dll.config;**\*Tests*;**\*Test*;**\*.deps.json" />
   </files>
 </package>

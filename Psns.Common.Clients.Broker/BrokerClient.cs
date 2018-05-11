@@ -11,7 +11,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using static Psns.Common.Clients.Broker.AppPrelude;
 using static Psns.Common.Functional.Prelude;
-using Subscriber = System.IObserver<Psns.Common.Clients.Broker.BrokerMessage>;
 
 namespace Psns.Common.Clients.Broker
 {
@@ -32,7 +31,7 @@ namespace Psns.Common.Clients.Broker
     /// <summary>
     /// Defines an <see cref="IObservable{BrokerMessage}" /> derivative.
     /// </summary>
-    public interface IBrokerClient : IObservable<BrokerMessage>
+    public interface IBrokerClient
     {
         /// <summary>
         /// Defines a method that starts receiving messages from a Service Broker queue.
@@ -44,7 +43,14 @@ namespace Psns.Common.Clients.Broker
         /// <summary>
         /// Defines a list of subscribers for incoming messages.
         /// </summary>
-        IList<Subscriber> Subscribers { get; }
+        IList<IBrokerObserver> Subscribers { get; }
+
+        /// <summary>
+        /// Subscriber a new observer to receive Broker messages.
+        /// </summary>
+        /// <param name="observer"></param>
+        /// <returns>An <see cref="IDisposable"/> that can be disposed of to unsubscribe</returns>
+        IDisposable Subscribe(IBrokerObserver observer);
     }
 
     /// <summary>
@@ -53,13 +59,13 @@ namespace Psns.Common.Clients.Broker
     public class BrokerClient : IBrokerClient
     {
         #region private properties
-        delegate ProcessMessageAsync ComposeProcessMessageAsync(CancellationToken token, IEnumerable<Subscriber> observers);
-        delegate ProcessMessage ComposeProcessMessage(CancellationToken token, IEnumerable<Subscriber> observers);
+        delegate ProcessMessageAsync ComposeProcessMessageAsync(CancellationToken token, IEnumerable<IBrokerObserver> observers);
+        delegate ProcessMessage ComposeProcessMessage(CancellationToken token, IEnumerable<IBrokerObserver> observers);
 
         readonly Maybe<Log> _logger;
 
         // Observers that will receive messages from a SB queue.
-        readonly ConcurrentBag<Subscriber> _observers;
+        readonly ConcurrentBag<IBrokerObserver> _observers;
 
         // DB initialization
         readonly Func<IDbConnection> _connectionFactory;
@@ -185,7 +191,7 @@ namespace Psns.Common.Clients.Broker
             Maybe<Log> logger,
             Maybe<TaskScheduler> scheduler)
         {
-            _observers = new ConcurrentBag<Subscriber>();
+            _observers = new ConcurrentBag<IBrokerObserver>();
             _connectionFactory = connectionFactory.AssertValue();
             _openAsync = openAsync;
             _executeNonQueryAsync = executeNonQueryAsync;
@@ -218,7 +224,7 @@ namespace Psns.Common.Clients.Broker
                 () => Maybe<EndDialogAsync>.None);
 
             _composeProcessMessageAsync = endDialogAsync.Match(end => 
-                new ComposeProcessMessageAsync(fun((CancellationToken token, IEnumerable<Subscriber> observers) => 
+                new ComposeProcessMessageAsync(fun((CancellationToken token, IEnumerable<IBrokerObserver> observers) => 
                     new ProcessMessageAsync(ProcessMessageAsyncFactory().Par(
                         _logger,
                         _scheduler,
@@ -232,7 +238,7 @@ namespace Psns.Common.Clients.Broker
                 : new EndDialog(EndDialogFactory().Par(_logger, _connectionFactory));
 
             _composeProcessMessage = endDialog.Match(end =>
-                new ComposeProcessMessage(fun((CancellationToken token, IEnumerable<Subscriber> observers) =>
+                new ComposeProcessMessage(fun((CancellationToken token, IEnumerable<IBrokerObserver> observers) =>
                     new ProcessMessage(ProcessMessageFactory().Par(
                         _logger,
                         _scheduler,
@@ -250,10 +256,11 @@ namespace Psns.Common.Clients.Broker
         /// <remarks>Be aware that <see cref="IObserver{T}.OnNext(T)"/>, <see cref="IObserver{T}.OnError(Exception)"/>,
         /// and <see cref="IObserver{T}.OnCompleted()"/> are called asynchronously; 
         /// so appropriate state sharing precautions should be taken to avoid race conditions.</remarks>
-        /// <param name="observer">New addition</param>
+        /// <param name="observer">New addition that needs to implement <see cref="IBrokerObserver"/></param>
         /// <exception cref="System.ArgumentNullException"></exception>
+        /// <exception cref="System.InvalidOperationException">When <paramref name="observer"/> is not an <see cref="IBrokerObserver"/></exception>
         /// <returns>A subscription that can be unsubscribed from by calling Dispose</returns>
-        public IDisposable Subscribe(Subscriber observer)
+        public IDisposable Subscribe(IBrokerObserver observer)
         {
             if (!_observers.Contains(observer.AssertValue()))
             {
@@ -286,11 +293,11 @@ namespace Psns.Common.Clients.Broker
                     var result = _getMessageAsync.Match(
                         some: get => get(queueName).Match(
                             success: msg => QueueForProcessing(msg, cancelToken), 
-                            fail: exception => ProcessException(exception, cancelToken)).Result,
+                            fail: exception => ProcessException(exception, None, cancelToken)).Result,
                         none: () => _getMessage.Match(
                             some: get => get(queueName).Match(
                                 success: msg => QueueForProcessing(msg, cancelToken),
-                                fail: exception => ProcessException(exception, cancelToken)),
+                                fail: exception => ProcessException(exception, None, cancelToken)),
                             none: () => Unit.AsTask()));
                 }
 
@@ -316,7 +323,7 @@ namespace Psns.Common.Clients.Broker
         /// and stopped.
         /// 
         /// </summary>
-        /// <param name="tryGetMessage"></param>
+        /// <param name="message"></param>
         /// <param name="token"></param>
         /// <returns></returns>
         Task<UnitValue> QueueForProcessing(BrokerMessage message, CancellationToken token) =>
@@ -326,7 +333,7 @@ namespace Psns.Common.Clients.Broker
                       processMessage(message)
                           .Match(
                               success: _ => Unit,
-                              fail: exception => ProcessException(exception, token).Result).Result,
+                              fail: exception => ProcessException(exception, message, token).Result).Result,
                               token,
                               TaskCreationOptions.AttachedToParent,
                               _scheduler)),
@@ -335,24 +342,24 @@ namespace Psns.Common.Clients.Broker
                 Task.Factory.StartNew(() =>
                     processMessage(message).Match(
                         success: _ => Unit,
-                        fail: exception => ProcessException(exception, token).Result),
+                        fail: exception => ProcessException(exception, message, token).Result),
                     token,
                     TaskCreationOptions.AttachedToParent,
                     _scheduler)),
                 () => Unit.AsTask());
 
-        Task<UnitValue> ProcessException(Exception exception, CancellationToken token) =>
+        Task<UnitValue> ProcessException(Exception exception, Maybe<BrokerMessage> message, CancellationToken token) =>
             token.IsCancellationRequested
                 ? Unit.Tap(_ => _logger.Error(exception.GetExceptionChainMessagesWithSql())).AsTask()
                 : _observers.Iter(obs =>
-                    obs.SendError(exception, _logger),
+                    obs.SendError(exception, message, _logger),
                     token,
                     _scheduler);
 
         /// <summary>
         /// A list of the current Subscribers
         /// </summary>
-        public IList<Subscriber> Subscribers =>
+        public IList<IBrokerObserver> Subscribers =>
             _observers.ToList();
 
         public override string ToString() =>
@@ -368,11 +375,11 @@ namespace Psns.Common.Clients.Broker
     /// </summary>
     class Subscription : IDisposable
     {
-        readonly IProducerConsumerCollection<Subscriber> _observers;
-        readonly Subscriber _observer;
+        readonly IProducerConsumerCollection<IBrokerObserver> _observers;
+        readonly IBrokerObserver _observer;
         readonly Maybe<Log> _logger;
 
-        internal Subscription(IProducerConsumerCollection<Subscriber> observers, Subscriber observer, Maybe<Log> logger)
+        internal Subscription(IProducerConsumerCollection<IBrokerObserver> observers, IBrokerObserver observer, Maybe<Log> logger)
         {
             _observers = observers.AssertValue();
             _observer = observer.AssertValue();
@@ -391,7 +398,7 @@ namespace Psns.Common.Clients.Broker
             {
                 if (disposing && _observer != null && _observers != null && _observers.Contains(_observer))
                 {
-                    Subscriber removing;
+                    IBrokerObserver removing;
                     if(_observers.TryTake(out removing))
                     {
                         _logger.Debug($"Removed Observer: {ToString()}");

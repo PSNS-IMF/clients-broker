@@ -1,6 +1,7 @@
 ﻿using Moq;
 using NUnit.Framework;
 using Psns.Common.Clients.Broker;
+using Psns.Common.Functional;
 using Psns.Common.SystemExtensions;
 using Psns.Common.SystemExtensions.Diagnostics;
 using System;
@@ -101,10 +102,10 @@ namespace FluentBrokerClients.UnitTests
               _mockExeNonQueryAsync.Object);
         }
 
-        protected Mock<IObserver<BrokerMessage>> CreateMockObserver() =>
-            new Mock<IObserver<BrokerMessage>>();
+        protected Mock<IBrokerObserver> CreateMockObserver() =>
+            new Mock<IBrokerObserver>();
 
-        protected IObserver<BrokerMessage> CreateObserver() =>
+        protected IBrokerObserver CreateObserver() =>
             CreateMockObserver().Object;
 
         protected IDisposable AddSubscriber() =>
@@ -380,14 +381,14 @@ namespace FluentBrokerClients.UnitTests
             mockObserver.SetupSequence(o => o.OnNext(It.IsAny<BrokerMessage>()))
                 .Throws(new Exception(FailVal))
                 .Pass();
-            mockObserver.Setup(o => o.OnError(It.IsAny<Exception>())).Callback(() => _wait.Set());
+            mockObserver.Setup(o => o.OnError(It.IsAny<Exception>(), It.IsAny<Maybe<BrokerMessage>>())).Callback(() => _wait.Set());
 
             _client.Subscribe(mockObserver.Object);
             var running = _client.ReceiveMessages("TestQueue");
             _wait.WaitOne();
             running.StopReceiving();
 
-            mockObserver.Verify(o => o.OnError(It.Is<Exception>(e => e.Message == FailVal)));
+            mockObserver.Verify(o => o.OnError(It.Is<Exception>(e => e.Message == FailVal), It.IsAny<Maybe<BrokerMessage>>()));
 
             ExpectAll();
         }
@@ -396,7 +397,7 @@ namespace FluentBrokerClients.UnitTests
         public void ReceiveMessages_SBErrorMessageReceived_ObserversOnErrorsCalled()
         {
             var mockObserver = CreateMockObserver();
-            mockObserver.Setup(o => o.OnError(It.IsAny<Exception>())).Callback(() => _wait.Set());
+            mockObserver.Setup(o => o.OnError(It.IsAny<Exception>(), It.IsAny<Maybe<BrokerMessage>>())).Callback(() => _wait.Set());
 
             var mocks = CreateMocks(ServiceBrokerErrorMessageType);
             var client = new BrokerClient(() => mocks.Item1.Object, _mockOpenAsync.Object, _mockExeNonQueryAsync.Object);
@@ -406,7 +407,7 @@ namespace FluentBrokerClients.UnitTests
             _wait.WaitOne();
             running.StopReceiving();
 
-            mockObserver.Verify(o => o.OnError(It.Is<Exception>(e => e.Message == MessageText)));
+            mockObserver.Verify(o => o.OnError(It.Is<Exception>(e => e.Message == MessageText), It.IsAny<Maybe<BrokerMessage>>()));
 
             ExpectAll(mocks);
         }
@@ -467,7 +468,7 @@ namespace FluentBrokerClients.UnitTests
                 .Throws(new Exception($"{FailVal} 2"))
                 .Pass();
 
-            mockObserver.SetupSequence(o => o.OnError(It.IsAny<Exception>()))
+            mockObserver.SetupSequence(o => o.OnError(It.IsAny<Exception>(), It.IsAny<Maybe<BrokerMessage>>()))
                 .Pass()
                 .Throws(new Exception("OnError Fail"));
 
@@ -476,7 +477,7 @@ namespace FluentBrokerClients.UnitTests
             _wait.WaitOne();
             running.StopReceiving();
 
-            mockObserver.Verify(o => o.OnError(It.Is<Exception>(e => e.Message == FailVal)));
+            mockObserver.Verify(o => o.OnError(It.Is<Exception>(e => e.Message == FailVal), It.IsAny<Maybe<BrokerMessage>>()));
             mockLogger.Verify(l => l(It.IsRegex($"{FailVal} 2"), GeneralLogCategory, TraceEventType.Error));
 
             ExpectAll(mocks);
@@ -488,7 +489,7 @@ namespace FluentBrokerClients.UnitTests
             _mockOpenAsync.Setup(f => f(It.IsAny<IDbConnection>())).ThrowsAsync(new Exception(FailVal));
 
             var mockObserver = CreateMockObserver();
-            mockObserver.Setup(o => o.OnError(It.IsAny<Exception>()))
+            mockObserver.Setup(o => o.OnError(It.IsAny<Exception>(), It.IsAny<Maybe<BrokerMessage>>()))
                 .Callback(() => _wait.Set());
 
             _client.Subscribe(mockObserver.Object);
@@ -496,7 +497,7 @@ namespace FluentBrokerClients.UnitTests
             _wait.WaitOne();
             running.StopReceiving();
 
-            mockObserver.Verify(o => o.OnError(It.Is<Exception>(m => m.Message == FailVal)));
+            mockObserver.Verify(o => o.OnError(It.Is<Exception>(m => m.Message == FailVal), It.IsAny<Maybe<BrokerMessage>>()));
         }
 
         [Test]
@@ -505,7 +506,7 @@ namespace FluentBrokerClients.UnitTests
             _mockConnection.Setup(c => c.BeginTransaction()).Throws(new Exception(FailVal));
 
             var mockObserver = CreateMockObserver();
-            mockObserver.Setup(o => o.OnError(It.IsAny<Exception>()))
+            mockObserver.Setup(o => o.OnError(It.IsAny<Exception>(), It.IsAny<Maybe<BrokerMessage>>()))
                 .Callback(() => _wait.Set());
 
             _client.Subscribe(mockObserver.Object);
@@ -513,7 +514,7 @@ namespace FluentBrokerClients.UnitTests
             _wait.WaitOne();
             running.StopReceiving();
 
-            mockObserver.Verify(o => o.OnError(It.Is<Exception>(m => m.Message == FailVal)));
+            mockObserver.Verify(o => o.OnError(It.Is<Exception>(m => m.Message == FailVal), It.IsAny<Maybe<BrokerMessage>>()));
 
             _mockConnection.Verify(c => c.Dispose());
         }
@@ -524,7 +525,7 @@ namespace FluentBrokerClients.UnitTests
             _mockConnection.Setup(c => c.CreateCommand()).Throws(new Exception(FailVal));
 
             var mockObserver = CreateMockObserver();
-            mockObserver.Setup(o => o.OnError(It.IsAny<Exception>()))
+            mockObserver.Setup(o => o.OnError(It.IsAny<Exception>(), It.IsAny<Maybe<BrokerMessage>>()))
                 .Callback(() => _wait.Set());
 
             _client.Subscribe(mockObserver.Object);
@@ -532,7 +533,7 @@ namespace FluentBrokerClients.UnitTests
             _wait.WaitOne();
             running.StopReceiving();
 
-            mockObserver.Verify(o => o.OnError(It.Is<Exception>(m => m.Message == FailVal)));
+            mockObserver.Verify(o => o.OnError(It.Is<Exception>(m => m.Message == FailVal), It.IsAny<Maybe<BrokerMessage>>()));
 
             _mockConnection.Verify(c => c.Dispose());
             _mockTransaction.Verify(t => t.Dispose());
@@ -545,7 +546,7 @@ namespace FluentBrokerClients.UnitTests
 
             _mockExeNonQueryAsync.Setup(f => f(It.IsAny<IDbCommand>())).Throws(new Exception(FailVal));
 
-            mockObserver.Setup(o => o.OnError(It.IsAny<Exception>()))
+            mockObserver.Setup(o => o.OnError(It.IsAny<Exception>(), It.IsAny<Maybe<BrokerMessage>>()))
                 .Callback(() => _wait.Set());
 
             _client.Subscribe(mockObserver.Object);
@@ -553,7 +554,7 @@ namespace FluentBrokerClients.UnitTests
             _wait.WaitOne();
             running.StopReceiving();
 
-            mockObserver.Verify(o => o.OnError(It.Is<Exception>(m => m.Message == FailVal)));
+            mockObserver.Verify(o => o.OnError(It.Is<Exception>(m => m.Message == FailVal), It.IsAny<Maybe<BrokerMessage>>()));
 
             ExpectReceiveMessage();
             ExpectAllDisposed();

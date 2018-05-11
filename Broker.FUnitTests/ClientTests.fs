@@ -1,16 +1,16 @@
 ﻿module ClientTests
 
 open System
-open NUnit.Framework
-open FsUnit
-open System.Threading.Tasks
 open System.Collections.Generic
 open System.Data
-open Psns.Common.Clients.Broker
-open Psns.Common.Functional
-open Foq
 open System.Data.SqlClient
 open System.Threading
+open System.Threading.Tasks
+open NUnit.Framework
+open Foq
+open FsUnit
+open Psns.Common.Clients.Broker
+open Psns.Common.Functional
 open Psns.Common.SystemExtensions.Diagnostics
 
 type ex = Psns.Common.Functional.Prelude
@@ -63,9 +63,9 @@ let ``it should call observers independently.`` () =
     let execQueryAsync = ex.Some(new ExecuteNonQueryAsync(fun _ -> Task.FromResult(0)))
     let client = new BrokerClient(factory, openAsync, execQueryAsync, ex.Some(log), Maybe<TaskScheduler>.None)
 
-    let observer = Mock<IObserver<BrokerMessage>>().Setup(fun o -> <@ o.OnNext(any()) @>).Calls<unit>(fun _ ->
+    let observer = Mock<IBrokerObserver>().Setup(fun o -> <@ o.OnNext(any()) @>).Calls<unit>(fun _ ->
         resetEvent.Set() |> ignore).Create()
-    let observers = [ 1..9 ] |> List.map (fun _ -> Mock<IObserver<BrokerMessage>>().Create())
+    let observers = [ 1..9 ] |> List.map (fun _ -> Mock<IBrokerObserver>().Create())
     let observers = List.Cons(observer, observers)
     observers |> List.map (fun obs -> client.Subscribe obs) |> ignore
     

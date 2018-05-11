@@ -14,6 +14,7 @@ using static Psns.Common.Functional.Prelude;
 
 namespace Psns.Common.Clients.Broker
 {
+    #region delegates
     /// <summary>
     /// A function that retreives a BrokerMessage from a ServiceBroker queue.
     /// </summary>
@@ -53,6 +54,7 @@ namespace Psns.Common.Clients.Broker
     /// </summary>
     /// <returns></returns>
     public delegate Try<UnitValue> ProcessMessage(BrokerMessage message);
+    #endregion
 
     public static partial class AppPrelude
     {
@@ -119,7 +121,7 @@ namespace Psns.Common.Clients.Broker
             TaskScheduler,
             CancellationToken,
             EndDialogAsync,
-            IEnumerable<IObserver<BrokerMessage>>,
+            IEnumerable<IBrokerObserver>,
             BrokerMessage,
             TryAsync<UnitValue>> ProcessMessageAsyncFactory() =>
             (logger, scheduler, cancelToken, endDialog, observers, message) =>
@@ -135,7 +137,8 @@ namespace Psns.Common.Clients.Broker
                                     {
                                         case ServiceBrokerErrorMessageType:
                                             result = logger.Debug(observers, "Calling Observers OnError")
-                                                .Iter(obs => obs.SendError(new Exception(message.Message), logger), cancelToken, scheduler);
+                                                .Iter(obs => 
+                                                    obs.SendError(new Exception(message.Message), message, logger), cancelToken, scheduler);
                                             break;
                                         case ServiceBrokerEndDialogMessageType:
                                             result = logger.Debug(Unit, "Received EndDialog message").AsTask();
@@ -162,7 +165,7 @@ namespace Psns.Common.Clients.Broker
             TaskScheduler,
             CancellationToken,
             EndDialog,
-            IEnumerable<IObserver<BrokerMessage>>,
+            IEnumerable<IBrokerObserver>,
             BrokerMessage,
             Try<UnitValue>> ProcessMessageFactory() =>
             (logger, scheduler, cancelToken, endDialog, observers, message) =>
@@ -178,7 +181,7 @@ namespace Psns.Common.Clients.Broker
                                 {
                                     case ServiceBrokerErrorMessageType:
                                         result = logger.Debug(observers, "Calling Observers OnError")
-                                            .Iter(obs => obs.SendError(new Exception(message.Message), logger), cancelToken, scheduler);
+                                            .Iter(obs => obs.SendError(new Exception(message.Message), message, logger), cancelToken, scheduler);
                                         break;
                                     case ServiceBrokerEndDialogMessageType:
                                         result = logger.Debug(Unit, "Received EndDialog message").AsTask();
@@ -201,20 +204,31 @@ namespace Psns.Common.Clients.Broker
         /// <param name="next"></param>
         /// <param name="logger"></param>
         /// <returns></returns>
-        public static UnitValue SendNext(this IObserver<BrokerMessage> self, BrokerMessage next, Maybe<Log> logger) =>
-            Try(() => self.OnNext(next)).Match(_ => _, e => self.SendError(e, logger));
+        public static UnitValue SendNext(this IBrokerObserver self, BrokerMessage next, Maybe<Log> logger) =>
+            Try(() => self.OnNext(next)).Match(_ => _, e => self.SendError(e, next, logger));
 
         /// <summary>
         /// Adds error handling to IObserver.OnError
         /// </summary>
         /// <param name="self"></param>
         /// <param name="exception"></param>
+        /// <param name="message"></param>
         /// <param name="logger"></param>
         /// <returns></returns>
-        public static UnitValue SendError(this IObserver<BrokerMessage> self, Exception exception, Maybe<Log> logger) =>
-            Try(() => self.OnError(exception)).Match(_ => _, 
-                e => logger.Error<UnitValue>(new AggregateException(exception, e).GetExceptionChainMessagesWithSql()));
+        public static UnitValue SendError(this IBrokerObserver self, Exception exception, Maybe<BrokerMessage> message, Maybe<Log> logger) =>
+            Try(() => self.OnError(exception, message))
+                .Match(_ => _, 
+                    e => logger.Error<UnitValue>(new AggregateException(exception, e).GetExceptionChainMessagesWithSql()));
 
+        /// <summary>
+        /// Add logging for a <see cref="Functional.TryAsync{T}"/>.
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="self"></param>
+        /// <param name="mLog"></param>
+        /// <param name="description"></param>
+        /// <param name="type"></param>
+        /// <returns></returns>
         public static TryAsync<T> Log<T>(this TryAsync<T> self,
             Maybe<Log> mLog, 
             Func<T, string> description, 
@@ -236,8 +250,8 @@ namespace Psns.Common.Clients.Broker
         /// <param name="token"></param>
         /// <param name="scheduler"></param>
         /// <returns></returns>
-        internal static async Task<UnitValue> Iter<T>(this IEnumerable<IObserver<T>> self,
-            Action<IObserver<T>> func,
+        internal static async Task<UnitValue> Iter(this IEnumerable<IBrokerObserver> self,
+            Action<IBrokerObserver> func,
             CancellationToken token,
             TaskScheduler scheduler) =>
                 (await Task.WhenAll(self.Aggregate(
