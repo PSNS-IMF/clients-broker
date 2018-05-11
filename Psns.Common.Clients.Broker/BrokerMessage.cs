@@ -1,4 +1,6 @@
-﻿using System;
+﻿using Newtonsoft.Json;
+using Psns.Common.Functional;
+using System;
 using System.Diagnostics.Contracts;
 
 namespace Psns.Common.Clients.Broker
@@ -66,5 +68,11 @@ namespace Psns.Common.Clients.Broker
 
         public static BrokerMessage WithContract(this BrokerMessage self, string contract) =>
             new BrokerMessage(contract, self.MessageType, self.Message, self.ConversationGroup, self.Conversation);
+
+        public static Try<string> AsJson(this BrokerMessage self) => () =>
+            JsonConvert.SerializeObject(self, Formatting.Indented);
+
+        public static Try<BrokerMessage> FromJson(this string json) => () =>
+            JsonConvert.DeserializeObject<BrokerMessage>(json);
     }
 }

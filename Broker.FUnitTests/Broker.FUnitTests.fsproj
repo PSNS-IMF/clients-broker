@@ -60,6 +60,7 @@
     <Content Include="App.config" />
     <Compile Include="ClientTests.fs" />
     <Compile Include="DBTests.fs" />
+    <Compile Include="BrokerMessageTests.fs" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="Foq">
