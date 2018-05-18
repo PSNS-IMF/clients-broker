@@ -10,7 +10,6 @@ open NUnit.Framework
 open Foq
 open FsUnit
 open Psns.Common.Clients.Broker
-open Psns.Common.Functional
 open Psns.Common.SystemExtensions.Diagnostics
 
 type ex = Psns.Common.Functional.Prelude
@@ -59,9 +58,9 @@ let ``it should call observers independently.`` () =
     let finalConnection = connection.Setup(fun conn -> <@ conn.BeginTransaction() @>).Returns(transaction)
 
     let factory = Func<IDbConnection> (fun () -> finalConnection.Create())
-    let openAsync = ex.Some(new OpenAsync(fun conn -> conn.AsTask()))
+    let openAsync = ex.Some(new OpenAsync(fun conn -> Task.FromResult(conn)))
     let execQueryAsync = ex.Some(new ExecuteNonQueryAsync(fun _ -> Task.FromResult(0)))
-    let client = new BrokerClient(factory, openAsync, execQueryAsync, ex.Some(log), Maybe<TaskScheduler>.None)
+    let client = new BrokerClient(factory, openAsync, execQueryAsync, ex.Some(log), Psns.Common.Functional.Maybe<TaskScheduler>.None)
 
     let observer = Mock<IBrokerObserver>().Setup(fun o -> <@ o.OnNext(any()) @>).Calls<unit>(fun _ ->
         resetEvent.Set() |> ignore).Create()

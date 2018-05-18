@@ -10,6 +10,10 @@
     <projectUrl>https://github.com/PSNS-IMF/clients-broker</projectUrl>
     <licenseUrl>https://github.com/PSNS-IMF/clients-broker/blob/master/LICENSE.md</licenseUrl>
     <releaseNotes>
+      ## 2.0.0.5
+      ### Features
+      * Updates for libs
+
       ## 2.0.0.4
       ### Features
       * Add serialization helpers to BrokerMessage
@@ -45,7 +49,7 @@
         <dependency id="NETStandard.Library" version="2.0.2" exclude="Build,Analyzers" />
       </group>
       <group>
-        <dependency id="Psns.Common.SystemExtensions" version="2018.5.1.2" exclude="Build,Analyzers" />
+        <dependency id="Psns.Common.SystemExtensions" version="2018.5.16.1" exclude="Build,Analyzers" />
         <dependency id="System.Collections.Immutable" version="1.4.0" exclude="Build,Analyzers" />
         <dependency id="System.Diagnostics.Contracts" version="4.3.0" exclude="Build,Analyzers" />
         <dependency id="Newtonsoft.Json" version="11.0.2" exclude="Build,Analyzers" />
