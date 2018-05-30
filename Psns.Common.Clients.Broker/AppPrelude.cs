@@ -111,6 +111,38 @@ namespace Psns.Common.Clients.Broker
                     cmd => Unit.Tap(_ => cmd.ExecuteNonQuery()));
 
         /// <summary>
+        /// Begin a Service Broker Conversation.
+        /// </summary>
+        /// <returns></returns>
+        public static Func<
+            Maybe<Log>, 
+            Func<IDbConnection>, 
+            string,
+            string,
+            string,
+            Try<Guid>> BeginConversationFactory() =>
+            (log, connectionFactory, fromService, toService, contract) =>
+                CommandFactory<Guid>()(
+                    log,
+                    connectionFactory,
+                    SetupBeginConversation().Par(log, fromService, toService, contract),
+                    cmd => RunBeginCommandFactory()
+                        .Par(new ExecuteNonQueryAsync(c => c.ExecuteNonQuery().AsTask()))(cmd)
+                        .Result);
+
+        /// <summary>
+        /// Send a <see cref="BrokerMessage"/>.
+        /// </summary>
+        /// <returns></returns>
+        public static Func<Maybe<Log>, Func<IDbConnection>, BrokerMessage, Try<UnitValue>> SendFactory() =>
+            (log, connectionFactory, message) =>
+                CommandFactory<UnitValue>()(
+                    log,
+                    connectionFactory,
+                    SetupSend().Par(log, message.AssertValue()),
+                    cmd => Unit.Tap(_ => cmd.ExecuteNonQuery()));
+
+        /// <summary>
         /// When message type is Service Broker Error, calls Observer.OnError
         /// Else when message type is Service Broker End Dialog, calls EndDialog
         /// Else call Observer.OnNext for all other message types.

@@ -51,6 +51,22 @@ namespace Psns.Common.Clients.Broker
         /// <param name="observer"></param>
         /// <returns>An <see cref="IDisposable"/> that can be disposed of to unsubscribe</returns>
         IDisposable Subscribe(IBrokerObserver observer);
+
+        /// <summary>
+        /// Begin a Service Broker <c>Conversation</c>.
+        /// </summary>
+        /// <param name="from">Name of the originating <c>Service</c></param>
+        /// <param name="to">Name of the destination <c>Service</c></param>
+        /// <param name="contract">The name of the <c>Contract</c> to be used</param>
+        /// <returns>A <c>Conversation</c> identifier to be used to send a <see cref="BrokerMessage"/></returns>
+        Try<Guid> BeginConversation(string from, string to, string contract);
+
+        /// <summary>
+        /// Sends a <see cref="BrokerMessage"/>.
+        /// </summary>
+        /// <param name="message">The <see cref="BrokerMessage"/> to send</param>
+        /// <returns></returns>
+        Try<UnitValue> Send(BrokerMessage message);
     }
 
     /// <summary>
@@ -313,6 +329,24 @@ namespace Psns.Common.Clients.Broker
         }
 
         /// <summary>
+        /// Begin a <c>Conversation</c>.
+        /// </summary>
+        /// <param name="from"></param>
+        /// <param name="to"></param>
+        /// <param name="contract"></param>
+        /// <returns></returns>
+        public Try<Guid> BeginConversation(string from, string to, string contract) =>
+            BeginConversationFactory()(_logger, _connectionFactory, from, to, contract);
+
+        /// <summary>
+        /// Send a <see cref="BrokerMessage"/>.
+        /// </summary>
+        /// <param name="message"></param>
+        /// <returns></returns>
+        public Try<UnitValue> Send(BrokerMessage message) =>
+            SendFactory()(_logger, _connectionFactory, message);
+
+        /// <summary>
         /// Execute tryGetMessage and wait for result
         ///     On success, process message
         ///     On fail, notify observers of failure
@@ -362,6 +396,10 @@ namespace Psns.Common.Clients.Broker
         public IList<IBrokerObserver> Subscribers =>
             _observers.ToList();
 
+        /// <summary>
+        /// A <see cref="string"/> representation of the <see cref="BrokerClient"/>.
+        /// </summary>
+        /// <returns></returns>
         public override string ToString() =>
             $@"Observers: {_observers.Count}, WorkerStatus: {
                 _receiver.Match(task => task.Status.ToString(), () => None.ToString())}, CanBeCanceled: {

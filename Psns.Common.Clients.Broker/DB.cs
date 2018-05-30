@@ -103,6 +103,26 @@ namespace Psns.Common.Clients.Broker
                 };
 
         /// <summary>
+        /// Creates a function that executes the DB command to start a Service Broker Conversation.
+        /// </summary>
+        /// <returns>A <see cref="Guid"/> representing the ConversationId</returns>
+        public static Func<
+            ExecuteNonQueryAsync,
+            IDbCommand,
+            Task<Guid>> RunBeginCommandFactory() => async (executeNonQueryAsync, command) =>
+            {
+                var conversation = Guid.Empty;
+                var result = await executeNonQueryAsync(command);
+                var parameters = command.Parameters;
+
+                var convoParamValue = parameters[0].AsSqlParameter().Value;
+
+                return convoParamValue is DBNull
+                    ? Guid.Empty
+                    : (Guid)convoParamValue;
+            };
+
+        /// <summary>
         /// Creates a function that sets up a DB command with parameters 
         ///     and text to receive a BrokerMessage from a queue.
         /// </summary>
@@ -134,6 +154,34 @@ namespace Psns.Common.Clients.Broker
 
         /// <summary>
         /// Creates a function that sets up a DB command with parameters 
+        ///     and text to begin a Service Broker Conversation.
+        /// </summary>
+        /// <returns></returns>
+        public static Func<Maybe<Log>, string, string, string, IDbCommand, IDbCommand> SetupBeginConversation() => 
+            (log, fromService, toService, contract, command) =>
+            {
+                Cons(
+                    new SqlParameter("@conversation", SqlDbType.UniqueIdentifier)
+                        .Tap(param => param.Direction = ParameterDirection.Output),
+                    new SqlParameter("@fromService", SqlDbType.NVarChar, fromService.Length)
+                        .Tap(param => param.Value = fromService),
+                    new SqlParameter("@toService", SqlDbType.NVarChar, toService.Length)
+                        .Tap(param => param.Value = toService),
+                    new SqlParameter("@contract", SqlDbType.NVarChar, contract.Length)
+                        .Tap(param => param.Value = contract))
+                    .Iter(param => command.Parameters.Add(param));
+
+                command.CommandText = "BEGIN DIALOG CONVERSATION @conversation " +
+                    "FROM SERVICE @fromService " +
+                    "TO SERVICE @toService " +
+                    "ON CONTRACT @contract " +
+                    "WITH ENCRYPTION = OFF;";
+
+                return log.Debug(command, command.ToLogString(nameof(SetupBeginConversation)));
+            };
+
+        /// <summary>
+        /// Creates a function that sets up a DB command with parameters 
         ///     to end a given Service Broker Conversation.
         /// </summary>
         /// <returns></returns>
@@ -144,6 +192,28 @@ namespace Psns.Common.Clients.Broker
             command.CommandText = "END CONVERSATION @conversation";
 
             return log.Debug(command, command.ToLogString(nameof(SetupEndDialog)));
+        };
+
+        /// <summary>
+        /// Creates a function that sets up a DB command with parameters 
+        ///     to send a <see cref="BrokerMessage"/>.
+        /// </summary>
+        /// <returns></returns>
+        public static Func<Maybe<Log>, BrokerMessage, IDbCommand, IDbCommand> SetupSend() => (log, message, command) =>
+        {
+            command.Parameters.Add(
+                new SqlParameter("@message", SqlDbType.NVarChar, message.Message.Length)
+                    .Tap(p => p.Value = message.Message));
+
+            command.Parameters.Add(
+                new SqlParameter("@messageType", SqlDbType.NVarChar, message.MessageType.Length)
+                    .Tap(p => p.Value = message.MessageType));
+
+            command.Parameters.Add(new SqlParameter("@conversation", message.Conversation));
+
+            command.CommandText = "SEND ON CONVERSATION @conversation MESSAGE TYPE @messageType (@message)";
+
+            return log.Debug(command, command.ToLogString(nameof(SetupSend)));
         };
     }
 
