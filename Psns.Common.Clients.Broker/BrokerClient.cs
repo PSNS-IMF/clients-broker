@@ -306,28 +306,15 @@ namespace Psns.Common.Clients.Broker
 
                 while (!_tokenSource.IsCancellationRequested)
                 {
-                    _workers.Enqueue(
-                        _getMessageAsync.Match(
+                    _getMessageAsync.Match(
+                        some: get => get(queueName).Match(
+                            success: msg => QueueForProcessing(msg, cancelToken, _scheduler),
+                            fail: exception => ProcessException(exception, None, cancelToken, _scheduler)).Result,
+                        none: () => _getMessage.Match(
                             some: get => get(queueName).Match(
-                                success: msg => QueueForProcessing(msg, cancelToken), 
-                                fail: exception => ProcessException(exception, None, cancelToken)).Result,
-                            none: () => _getMessage.Match(
-                                some: get => get(queueName).Match(
-                                    success: msg => QueueForProcessing(msg, cancelToken),
-                                    fail: exception => ProcessException(exception, None, cancelToken)),
-                                none: () => Unit.AsTask()))
-                            .ContinueWith(task =>
-                            {
-                                _logger.Debug($"Task finished with Status: {task.Status}");
-
-                                Possible(task.Exception).IfSome(ex => _logger.Error(ex));
-
-                                Task removed;
-                                if (_workers.TryDequeue(out removed))
-                                    _logger.Debug($"Successfully released 1 completed worker of {_workers.Count + 1}");
-                                else
-                                    _logger.Error($"Unable to release completed worker");
-                            }, cancelToken));
+                                success: msg => QueueForProcessing(msg, cancelToken, _scheduler),
+                                fail: exception => ProcessException(exception, None, cancelToken, _scheduler)),
+                            none: () => Unit));
                 }
 
                 _logger.Debug("Receiver cancelling");
@@ -365,45 +352,58 @@ namespace Psns.Common.Clients.Broker
         /// Execute tryGetMessage and wait for result
         ///     On success, process message
         ///     On fail, notify observers of failure
-        ///
-        /// On both success and fail, a child Task (AttachedToParent) is created
-        /// so that more messages can be processed concurrently. Attaching to parent
-        /// ensures that when parent is stopped, all children are also waited on
-        /// and stopped.
         /// 
         /// </summary>
         /// <param name="message"></param>
         /// <param name="token"></param>
+        /// <param name="scheduler"></param>
         /// <returns></returns>
-        Task<UnitValue> QueueForProcessing(BrokerMessage message, CancellationToken token) =>
-            IsAsync
-            ? _composeProcessMessageAsync.Match(compose => Map(compose(token, _observers), processMessage =>
-                  Task.Factory.StartNew(() =>
-                      processMessage(message)
-                          .Match(
-                              success: _ => Unit,
-                              fail: exception => ProcessException(exception, message, token).Result).Result,
-                              token,
-                              TaskCreationOptions.None,
-                              _scheduler)),
-                () => Unit.AsTask())
-            : _composeProcessMessage.Match(compose => Map(compose(token, _observers), processMessage =>
+        UnitValue QueueForProcessing(BrokerMessage message, CancellationToken token, TaskScheduler scheduler) =>
+            Unit.Tap(_ => _workers.Enqueue(
                 Task.Factory.StartNew(() =>
-                    processMessage(message).Match(
-                        success: _ => Unit,
-                        fail: exception => ProcessException(exception, message, token).Result),
-                    token,
-                    TaskCreationOptions.None,
-                    _scheduler)),
-                () => Unit.AsTask());
+                    IsAsync
+                    ? _composeProcessMessageAsync.Match(
+                        some: compose => 
+                                Map(compose(token, _observers), processMessage =>
+                                  processMessage(message)
+                                      .Match(
+                                          success: __ => Unit,
+                                          fail: exception => ProcessException(exception, message, token, _scheduler)).Result),
+                        none: () => Unit)
+                    : _composeProcessMessage.Match(
+                        some: compose =>
+                                Map(compose(token, _observers), processMessage =>
+                                    processMessage(message).Match(
+                                        success: __ => Unit,
+                                        fail: exception => ProcessException(exception, message, token, _scheduler))),
+                        none: () => Unit),
+                        token, TaskCreationOptions.None, scheduler)
+                .ContinueWith(TaskContinuation, token)));
 
-        Task<UnitValue> ProcessException(Exception exception, Maybe<BrokerMessage> message, CancellationToken token) =>
-            token.IsCancellationRequested
-                ? Unit.Tap(_ => _logger.Error(exception.GetExceptionChainMessagesWithSql())).AsTask()
-                : _observers.Iter(obs =>
-                    obs.SendError(exception, message, _logger),
-                    token,
-                    _scheduler);
+        UnitValue ProcessException(Exception exception, Maybe<BrokerMessage> message, CancellationToken token, TaskScheduler scheduler) =>
+            Unit.Tap(_ => _workers.Enqueue(
+            Task.Factory.StartNew(() =>
+                token.IsCancellationRequested
+                    ? Unit.Tap(__ => _logger.Error(exception.GetExceptionChainMessagesWithSql()))
+                    : _observers.Iter(obs =>
+                        obs.SendError(exception, message, _logger)),
+                token,
+                TaskCreationOptions.None,
+                scheduler)
+            .ContinueWith(TaskContinuation, token)));
+
+        void TaskContinuation(Task task)
+        {
+            _logger.Debug($"Task finished with Status: {task.Status}");
+
+            Possible(task.Exception).IfSome(ex => _logger.Error(ex));
+
+            Task removed;
+            if (_workers.TryDequeue(out removed))
+                _logger.Debug($"Successfully released 1 completed worker of {_workers.Count + 1}");
+            else
+                _logger.Error($"Unable to release completed worker");
+        }
 
         /// <summary>
         /// A list of the current Subscribers

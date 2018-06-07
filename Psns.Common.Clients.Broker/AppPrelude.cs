@@ -4,7 +4,6 @@ using Psns.Common.SystemExtensions.Diagnostics;
 using System;
 using System.Collections.Generic;
 using System.Data;
-using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -169,7 +168,7 @@ namespace Psns.Common.Clients.Broker
                                     {
                                         case ServiceBrokerErrorMessageType:
                                             result = logger.Debug(observers, "Calling Observers OnError")
-                                                .Iter(obs => 
+                                                .IterAsync(obs => 
                                                     obs.SendError(new Exception(message.Message), message, logger), cancelToken, scheduler);
                                             break;
                                         case ServiceBrokerEndDialogMessageType:
@@ -177,7 +176,7 @@ namespace Psns.Common.Clients.Broker
                                             break;
                                         default:
                                             result = logger.Debug(observers, "Calling Observers OnNext")
-                                                .Iter(obs => obs.SendNext(message, logger), cancelToken, scheduler);
+                                                .IterAsync(obs => obs.SendNext(message, logger), cancelToken, scheduler);
                                             break;
                                     }
 
@@ -207,24 +206,24 @@ namespace Psns.Common.Clients.Broker
                         logger.Debug(
                             endDialog(message.Conversation).Bind(__ =>
                             {
-                                var result = UnitValue.Default.AsTask();
+                                var result = UnitValue.Default;
 
                                 switch (message.MessageType)
                                 {
                                     case ServiceBrokerErrorMessageType:
                                         result = logger.Debug(observers, "Calling Observers OnError")
-                                            .Iter(obs => obs.SendError(new Exception(message.Message), message, logger), cancelToken, scheduler);
+                                            .Concurrently(obs => obs.SendError(new Exception(message.Message), message, logger), cancelToken, scheduler);
                                         break;
                                     case ServiceBrokerEndDialogMessageType:
-                                        result = logger.Debug(Unit, "Received EndDialog message").AsTask();
+                                        result = logger.Debug(Unit, "Received EndDialog message");
                                         break;
                                     default:
                                         result = logger.Debug(observers, "Calling Observers OnNext")
-                                            .Iter(obs => obs.SendNext(message, logger), cancelToken, scheduler);
+                                            .Concurrently(obs => obs.SendNext(message, logger), cancelToken, scheduler);
                                         break;
                                 }
 
-                                return result.Result;
+                                return result;
                             }),
                             "Ending Dialog")),
                     _ => Try(() => Unit));
@@ -252,56 +251,17 @@ namespace Psns.Common.Clients.Broker
                 .Match(_ => _, 
                     e => logger.Error<UnitValue>(new AggregateException(exception, e).GetExceptionChainMessagesWithSql()));
 
-        /// <summary>
-        /// Add logging for a <see cref="Functional.TryAsync{T}"/>.
-        /// </summary>
-        /// <typeparam name="T"></typeparam>
-        /// <param name="self"></param>
-        /// <param name="mLog"></param>
-        /// <param name="description"></param>
-        /// <param name="type"></param>
-        /// <returns></returns>
-        public static TryAsync<T> Log<T>(this TryAsync<T> self,
-            Maybe<Log> mLog, 
-            Func<T, string> description, 
-            TraceEventType type = TraceEventType.Information) => async () =>
-                await self.Bind(val => 
-                    TryAsync(() => mLog.Match(
-                        some: log => log.Log(val, description, type: type), 
-                        none: () => val)
-                    .AsTask()))
-                .TryAsync();
-
-        /// <summary>
-        /// Perform an action on all <see cref="IEnumerable{T}"/> of <see cref="IObservable{T}"/> asynchronously.
-        /// </summary>
-        /// <typeparam name="T"></typeparam>
-        /// <typeparam name="R"></typeparam>
-        /// <param name="self"></param>
-        /// <param name="func"></param>
-        /// <param name="token"></param>
-        /// <param name="scheduler"></param>
-        /// <returns></returns>
-        internal static async Task<UnitValue> Iter(this IEnumerable<IBrokerObserver> self,
-            Action<IBrokerObserver> func,
-            CancellationToken token,
-            TaskScheduler scheduler) =>
-                (await Task.WhenAll(self.Aggregate(
-                    new List<Task<UnitValue>>(),
-                    (list, next) =>
-                    {
-                        list.Add(Task.Factory.StartNew(() => 
-                            {
-                                token.ThrowIfCancellationRequested();
-                                func(next);
-                                return Unit;
-                            }, 
-                            token, 
-                            TaskCreationOptions.None, 
-                            scheduler));
-
-                        return list;
-                    })))
-                .FirstOrDefault();
+        static UnitValue Concurrently<T>(this IEnumerable<T> self, Action<T> action, CancellationToken token, TaskScheduler scheduler) =>
+            Unit.Tap(_ => Task.WaitAll(
+                self.Aggregate(
+                    Empty<Task>(),
+                    (state, next) => 
+                        Task.Factory.StartNew(
+                            () => action(next),
+                            token,
+                            TaskCreationOptions.None,
+                            scheduler)
+                        .Cons(state))
+                .ToArray()));
     }
 }
