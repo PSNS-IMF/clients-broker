@@ -61,6 +61,7 @@
     <Compile Include="ClientTests.fs" />
     <Compile Include="DBTests.fs" />
     <Compile Include="BrokerMessageTests.fs" />
+    <Compile Include="ProcessMessageTests.fs" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="Foq">

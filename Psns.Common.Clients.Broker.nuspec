@@ -10,6 +10,10 @@
     <projectUrl>https://github.com/PSNS-IMF/clients-broker</projectUrl>
     <licenseUrl>https://github.com/PSNS-IMF/clients-broker/blob/master/LICENSE.md</licenseUrl>
     <releaseNotes>
+      ## 2.0.0.6
+      ### Bug fixes
+      * Fixed issue with async methods not being executed
+
       ## 2.0.0.5
       ### Features
       * Updates for libs

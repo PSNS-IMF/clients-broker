@@ -225,17 +225,6 @@ namespace FluentBrokerClients.UnitTests
         }
 
         [Test]
-        public void StopReceiving_AlreadyBeenCalled_ThrowsException()
-        {
-            AddSubscriber();
-
-            var running = _client.ReceiveMessages(QueueName);
-            var result = running.StopReceiving();
-
-            Expect(() => running.StopReceiving(), Throws.InvalidOperationException);
-        }
-
-        [Test]
         public void StopReceiving_WithError_ResultIsFailure_SubscribersCleared()
         {
             Enumerable.Range(1, 2).Iter(i =>

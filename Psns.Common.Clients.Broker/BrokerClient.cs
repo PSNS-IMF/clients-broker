@@ -98,6 +98,7 @@ namespace Psns.Common.Clients.Broker
         CancellationTokenSource _tokenSource;
         Maybe<CancellationToken> _cancelToken;
         Maybe<Task> _receiver;
+        ConcurrentQueue<Task> _workers;
         #endregion
 
         #region constructors
@@ -128,8 +129,6 @@ namespace Psns.Common.Clients.Broker
         /// Creates a new client.
         /// </summary>
         /// <param name="connectionFactory">A function that creates a new DB connection</param>
-        /// <param name="openAsync">A function that asynchronously opens the DB connection</param>
-        /// <param name="executeNonQueryAsync">A function that asynchronously executes a DB command</param>
         /// <param name="logger">A function that writes logging messages</param>
         /// <exception cref="System.ArgumentNullException"></exception>
         public BrokerClient(
@@ -213,6 +212,7 @@ namespace Psns.Common.Clients.Broker
             _executeNonQueryAsync = executeNonQueryAsync;
             _logger = logger;
             _scheduler = scheduler | TaskScheduler.Current;
+            _workers = new ConcurrentQueue<Task>();
 
             _getMessageAsync = _openAsync.Match(open =>
                 _executeNonQueryAsync.Match(exec =>
@@ -306,15 +306,28 @@ namespace Psns.Common.Clients.Broker
 
                 while (!_tokenSource.IsCancellationRequested)
                 {
-                    var result = _getMessageAsync.Match(
-                        some: get => get(queueName).Match(
-                            success: msg => QueueForProcessing(msg, cancelToken), 
-                            fail: exception => ProcessException(exception, None, cancelToken)).Result,
-                        none: () => _getMessage.Match(
+                    _workers.Enqueue(
+                        _getMessageAsync.Match(
                             some: get => get(queueName).Match(
-                                success: msg => QueueForProcessing(msg, cancelToken),
-                                fail: exception => ProcessException(exception, None, cancelToken)),
-                            none: () => Unit.AsTask()));
+                                success: msg => QueueForProcessing(msg, cancelToken), 
+                                fail: exception => ProcessException(exception, None, cancelToken)).Result,
+                            none: () => _getMessage.Match(
+                                some: get => get(queueName).Match(
+                                    success: msg => QueueForProcessing(msg, cancelToken),
+                                    fail: exception => ProcessException(exception, None, cancelToken)),
+                                none: () => Unit.AsTask()))
+                            .ContinueWith(task =>
+                            {
+                                _logger.Debug($"Task finished with Status: {task.Status}");
+
+                                Possible(task.Exception).IfSome(ex => _logger.Error(ex));
+
+                                Task removed;
+                                if (_workers.TryDequeue(out removed))
+                                    _logger.Debug($"Successfully released 1 completed worker of {_workers.Count + 1}");
+                                else
+                                    _logger.Error($"Unable to release completed worker");
+                            }, cancelToken));
                 }
 
                 _logger.Debug("Receiver cancelling");
@@ -325,7 +338,9 @@ namespace Psns.Common.Clients.Broker
 
             _logger.Debug("Starting Receiver");
 
-            return new RunningBrokerClient(_logger, _observers, _receiver, _tokenSource);
+            _receiver.IfSome(t => _workers.Enqueue(t));
+
+            return new RunningBrokerClient(_logger, _observers, _workers, _tokenSource);
         }
 
         /// <summary>
@@ -369,7 +384,7 @@ namespace Psns.Common.Clients.Broker
                               success: _ => Unit,
                               fail: exception => ProcessException(exception, message, token).Result).Result,
                               token,
-                              TaskCreationOptions.AttachedToParent,
+                              TaskCreationOptions.None,
                               _scheduler)),
                 () => Unit.AsTask())
             : _composeProcessMessage.Match(compose => Map(compose(token, _observers), processMessage =>
@@ -378,7 +393,7 @@ namespace Psns.Common.Clients.Broker
                         success: _ => Unit,
                         fail: exception => ProcessException(exception, message, token).Result),
                     token,
-                    TaskCreationOptions.AttachedToParent,
+                    TaskCreationOptions.None,
                     _scheduler)),
                 () => Unit.AsTask());
 

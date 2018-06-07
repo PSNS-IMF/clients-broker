@@ -28,18 +28,18 @@ namespace Psns.Common.Clients.Broker
     {
         readonly Maybe<Log> _logger;
         readonly Maybe<IProducerConsumerCollection<IBrokerObserver>> _observers;
-        readonly Maybe<Task> _worker;
+        readonly Maybe<IProducerConsumerCollection<Task>> _workers;
         readonly Maybe<CancellationTokenSource> _tokenSource;
 
         internal RunningBrokerClient(
             Maybe<Log> logger,
             Maybe<IProducerConsumerCollection<IBrokerObserver>> observers,
-            Maybe<Task> worker,
+            Maybe<IProducerConsumerCollection<Task>> workers,
             CancellationTokenSource tokenSource)
         {
             _logger = logger;
             _observers = observers;
-            _worker = worker;
+            _workers = workers;
             _tokenSource = tokenSource;
         }
 
@@ -51,22 +51,17 @@ namespace Psns.Common.Clients.Broker
         /// <returns>A result containing any Exceptions from removing Subscribers</returns>
         public StopReceivingResult StopReceiving()
         {
-            if (_observers.IsNone || _worker.IsNone || _tokenSource.IsNone)
+            if (_observers.IsNone || _workers.IsNone || _tokenSource.IsNone)
             {
                 throw new InvalidOperationException($"{nameof(BrokerClient)} has not started receiving");
             }
 
             var tokenSource = _tokenSource | CancellationTokenSource.CreateLinkedTokenSource(CancellationToken.None);
-            var worker = _worker | Task.Delay(0);
-            var observers = _observers.Match(s => s, () => new ConcurrentBag<IBrokerObserver>());
-
-            if (worker.IsCompleted)
-            {
-                throw new InvalidOperationException($"{nameof(BrokerClient)} has already stopped receiving");
-            }
+            var workers = _workers | new ConcurrentBag<Task>();
+            var observers = _observers | new ConcurrentBag<IBrokerObserver>();
 
             return new StopReceivingResult(Try(() => tokenSource.Cancel()))
-                .Append(Try(() => { worker.Wait(); _logger.Debug("Receiver stopped"); }))
+                .Append(Try(() => { Task.WaitAll(workers.ToArray(), tokenSource.Token); _logger.Debug("Receiver stopped"); }))
                 .Append(Try(() => tokenSource.Dispose()))
                 .Append(
                     _logger.Debug(observers, "Calling Observers OnCompleted").Aggregate(
