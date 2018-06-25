@@ -13,7 +13,6 @@ open Psns.Common.Clients.Broker
 open Psns.Common.SystemExtensions.Diagnostics
 
 type ex = Psns.Common.Functional.Prelude
-type tryex = Psns.Common.Functional.TryExtensions
 
 let initParamEnumerator eCalls = Mock<IEnumerator<SqlParameter>>().Setup(fun e -> <@ e.Current @>).Returns(new SqlParameter()).Setup(fun e -> <@ e.MoveNext() @>).Returns(fun () ->
     incr eCalls
@@ -143,7 +142,7 @@ module ``beginning conversations`` =
         let execQueryAsync = ex.Some(new ExecuteNonQueryAsync(fun _ -> Task.FromResult(0)))
         let client = new BrokerClient(factory, openAsync, execQueryAsync, ex.Some(log), Psns.Common.Functional.Maybe<TaskScheduler>.None)
 
-        let conversationId = tryex.Match(client.BeginConversation("sender", "receiver", "contract"), (fun id -> id |> string), (fun ex -> ex.Message))
+        let conversationId = client.BeginConversation("sender", "receiver", "contract").Match((fun id -> id |> string), (fun ex -> ex.Message))
 
         conversationId |> should equal guidMatch
         verifyCommand command
@@ -168,7 +167,7 @@ module ``beginning conversations`` =
         let execQueryAsync = ex.Some(new ExecuteNonQueryAsync(fun _ -> Task.FromResult(0)))
         let client = new BrokerClient(factory, openAsync, execQueryAsync, ex.Some(log), Psns.Common.Functional.Maybe<TaskScheduler>.None)
 
-        let conversationId = tryex.Match(client.BeginConversation("sender", "receiver", "contract"), (fun id -> id |> string), (fun ex -> ex.Message))
+        let conversationId = client.BeginConversation("sender", "receiver", "contract").Match((fun id -> id |> string), (fun ex -> ex.Message))
 
         conversationId |> should equal (Guid.Empty |> string)
 
@@ -216,7 +215,7 @@ module ``sending messages`` =
         let execQueryAsync = ex.Some(new ExecuteNonQueryAsync(fun _ -> Task.FromResult(0)))
         let client = new BrokerClient(factory, openAsync, execQueryAsync, ex.Some(log), Psns.Common.Functional.Maybe<TaskScheduler>.None)
 
-        let res = tryex.Match(client.Send(new BrokerMessage("contract", "type", "msg", Guid.Empty, makeGuid())), (fun _ -> "ok"), (fun ex -> ex.Message))
+        let res = client.Send(new BrokerMessage("contract", "type", "msg", Guid.Empty, makeGuid())).Match((fun _ -> "ok"), (fun ex -> ex.Message))
 
         res |> should equal "ok"
 

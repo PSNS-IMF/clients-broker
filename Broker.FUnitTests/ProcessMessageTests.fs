@@ -13,11 +13,11 @@ open FsUnit
 type ex = Psns.Common.Functional.Prelude
 type lib = Psns.Common.Clients.Broker.AppPrelude
 
-let doTry (t: Try<'a>) = t.Match((fun x -> x), (fun ex -> failwith ex.Message))
+let doTry (t: Either<exn, 'a>) = t.Match((fun x -> x), (fun ex -> failwith ex.Message))
 
 let getLog () = ex.Some(new Log(fun _ -> fun _ -> fun _ -> ()))
 let scheduler = TaskScheduler.Current
-let getEndDialog calls = new EndDialog(fun _ -> incr calls; ex.Unit.ToTry())
+let getEndDialog calls = new EndDialog(fun _ -> incr calls; ex.Unit.Ok())
 let getObserver () = Mock<IBrokerObserver>().Create()
 let run endCalls observer = lib.ProcessMessageFactory().Par(getLog(), scheduler, CancellationToken.None, getEndDialog endCalls, [observer])
 

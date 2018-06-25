@@ -46,7 +46,7 @@ namespace Psns.Common.Clients.Broker
         IList<IBrokerObserver> Subscribers { get; }
 
         /// <summary>
-        /// Subscriber a new observer to receive Broker messages.
+        /// Subscribe a new observer to receive Broker messages.
         /// </summary>
         /// <param name="observer"></param>
         /// <returns>An <see cref="IDisposable"/> that can be disposed of to unsubscribe</returns>
@@ -59,14 +59,14 @@ namespace Psns.Common.Clients.Broker
         /// <param name="to">Name of the destination <c>Service</c></param>
         /// <param name="contract">The name of the <c>Contract</c> to be used</param>
         /// <returns>A <c>Conversation</c> identifier to be used to send a <see cref="BrokerMessage"/></returns>
-        Try<Guid> BeginConversation(string from, string to, string contract);
+        Either<Exception, Guid> BeginConversation(string from, string to, string contract);
 
         /// <summary>
         /// Sends a <see cref="BrokerMessage"/>.
         /// </summary>
         /// <param name="message">The <see cref="BrokerMessage"/> to send</param>
         /// <returns></returns>
-        Try<UnitValue> Send(BrokerMessage message);
+        Either<Exception, UnitValue> Send(BrokerMessage message);
     }
 
     /// <summary>
@@ -312,8 +312,8 @@ namespace Psns.Common.Clients.Broker
                             fail: exception => ProcessException(exception, None, cancelToken, _scheduler)).Result,
                         none: () => _getMessage.Match(
                             some: get => get(queueName).Match(
-                                success: msg => QueueForProcessing(msg, cancelToken, _scheduler),
-                                fail: exception => ProcessException(exception, None, cancelToken, _scheduler)),
+                                right: msg => QueueForProcessing(msg, cancelToken, _scheduler),
+                                left: exception => ProcessException(exception, None, cancelToken, _scheduler)),
                             none: () => Unit));
                 }
 
@@ -337,7 +337,7 @@ namespace Psns.Common.Clients.Broker
         /// <param name="to"></param>
         /// <param name="contract"></param>
         /// <returns></returns>
-        public Try<Guid> BeginConversation(string from, string to, string contract) =>
+        public Either<Exception, Guid> BeginConversation(string from, string to, string contract) =>
             BeginConversationFactory()(_logger, _connectionFactory, from, to, contract);
 
         /// <summary>
@@ -345,7 +345,7 @@ namespace Psns.Common.Clients.Broker
         /// </summary>
         /// <param name="message"></param>
         /// <returns></returns>
-        public Try<UnitValue> Send(BrokerMessage message) =>
+        public Either<Exception, UnitValue> Send(BrokerMessage message) =>
             SendFactory()(_logger, _connectionFactory, message);
 
         /// <summary>
@@ -374,8 +374,8 @@ namespace Psns.Common.Clients.Broker
                         some: compose =>
                                 Map(compose(token, _observers), processMessage =>
                                     processMessage(message).Match(
-                                        success: __ => Unit,
-                                        fail: exception => ProcessException(exception, message, token, _scheduler))),
+                                        right: __ => Unit,
+                                        left: exception => ProcessException(exception, message, token, _scheduler))),
                         none: () => Unit),
                         token, TaskCreationOptions.None, scheduler)
                 .ContinueWith(TaskContinuation, token)));
@@ -400,7 +400,11 @@ namespace Psns.Common.Clients.Broker
 
             Task removed;
             if (_workers.TryDequeue(out removed))
-                _logger.Debug($"Successfully released 1 completed worker of {_workers.Count + 1}");
+            {
+                Try(() => removed.Wait()).Match(
+                    _ => _logger.Debug($"Successfully released 1 completed worker of {_workers.Count + 1}"),
+                    ex => _logger.Error(ex.GetExceptionChainMessagesWithSql()));
+            }
             else
                 _logger.Error($"Unable to release completed worker");
         }

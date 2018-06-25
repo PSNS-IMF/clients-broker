@@ -212,16 +212,27 @@ namespace FluentBrokerClients.UnitTests
         public void StopReceiving_NoErrors_ResultIsNotFailure_SubscribersCleared()
         {
             var mocks = CreateMocks();
+            var mockLogger = new Mock<Log>();
 
             var client = new BrokerClient(
                 () => mocks.Item1.Object,
                 _mockOpenAsync.Object,
-                _mockExeNonQueryAsync.Object);
+                _mockExeNonQueryAsync.Object,
+                mockLogger.Object);
 
-            client.Subscribe(CreateObserver());
+            var mockObserver1 = CreateMockObserver();
+            mockObserver1.Setup(f => f.OnCompleted()).Throws<InvalidOperationException>();
+            var mockObserver2 = CreateMockObserver();
 
-            Expect(client.ReceiveMessages(QueueName).StopReceiving().Failed, False);
+            client.Subscribe(mockObserver1.Object);
+            client.Subscribe(mockObserver2.Object);
+
+            Expect(client.ReceiveMessages(QueueName).StopReceiving().Failed, True);
             Expect(client.Subscribers.Count, EqualTo(0));
+
+            mockObserver1.Verify(o => o.OnCompleted(), Times.Once());
+            mockObserver2.Verify(o => o.OnCompleted(), Times.Once());
+            mockLogger.Verify(f => f(It.IsRegex("Receiver stopped"), It.IsAny<string>(), It.IsAny<TraceEventType>()), Times.Once());
         }
 
         [Test]

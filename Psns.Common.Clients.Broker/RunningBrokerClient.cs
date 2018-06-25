@@ -61,7 +61,8 @@ namespace Psns.Common.Clients.Broker
             var observers = _observers | new ConcurrentBag<IBrokerObserver>();
 
             return new StopReceivingResult(Try(() => tokenSource.Cancel()))
-                .Append(Try(() => { Task.WaitAll(workers.ToArray(), tokenSource.Token); _logger.Debug("Receiver stopped"); }))
+                .Append(Try(() => Task.WaitAll(workers.ToArray(), tokenSource.Token)))
+                .Append(Try(() => _logger.Debug<UnitValue>("Receiver stopped")))
                 .Append(Try(() => tokenSource.Dispose()))
                 .Append(
                     _logger.Debug(observers, "Calling Observers OnCompleted").Aggregate(

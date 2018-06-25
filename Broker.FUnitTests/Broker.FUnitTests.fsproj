@@ -62,6 +62,7 @@
     <Compile Include="DBTests.fs" />
     <Compile Include="BrokerMessageTests.fs" />
     <Compile Include="ProcessMessageTests.fs" />
+    <Compile Include="StopReceivingResultTests.fs" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="Foq">
@@ -82,13 +83,13 @@
       <HintPath>..\packages\NUnit.3.9.0\lib\net45\nunit.framework.dll</HintPath>
     </Reference>
     <Reference Include="Psns.Common.Analysis">
-      <HintPath>..\packages\Psns.Common.Analysis.2018.5.18.1\lib\net46\Psns.Common.Analysis.dll</HintPath>
+      <HintPath>..\packages\Psns.Common.Analysis.2018.5.21.1\lib\net46\Psns.Common.Analysis.dll</HintPath>
     </Reference>
     <Reference Include="Psns.Common.Functional">
-      <HintPath>..\packages\Psns.Common.Functional.2018.5.16.1\lib\netstandard1.0\Psns.Common.Functional.dll</HintPath>
+      <HintPath>..\packages\Psns.Common.Functional.2018.6.15.1\lib\netstandard1.0\Psns.Common.Functional.dll</HintPath>
     </Reference>
     <Reference Include="Psns.Common.SystemExtensions">
-      <HintPath>..\packages\Psns.Common.SystemExtensions.2018.5.16.1\lib\net46\Psns.Common.SystemExtensions.dll</HintPath>
+      <HintPath>..\packages\Psns.Common.SystemExtensions.2018.6.11.1\lib\net46\Psns.Common.SystemExtensions.dll</HintPath>
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.AppContext">

@@ -26,7 +26,7 @@ namespace Psns.Common.Clients.Broker
     /// </summary>
     /// <param name="queueName"></param>
     /// <returns></returns>
-    public delegate Try<BrokerMessage> GetMessage(string queueName);
+    public delegate Either<Exception, BrokerMessage> GetMessage(string queueName);
 
     /// <summary>
     /// A function that ends a Service Broker Conversation.
@@ -40,7 +40,7 @@ namespace Psns.Common.Clients.Broker
     /// </summary>
     /// <param name="conversationId"></param>
     /// <returns></returns>
-    public delegate Try<UnitValue> EndDialog(Guid conversationId);
+    public delegate Either<Exception, UnitValue> EndDialog(Guid conversationId);
 
     /// <summary>
     /// Creates a function that evaluates and processes BrokerMessages.
@@ -52,9 +52,12 @@ namespace Psns.Common.Clients.Broker
     /// Creates a function that evaluates and processes BrokerMessages.
     /// </summary>
     /// <returns></returns>
-    public delegate Try<UnitValue> ProcessMessage(BrokerMessage message);
+    public delegate Either<Exception, UnitValue> ProcessMessage(BrokerMessage message);
     #endregion
 
+    /// <summary>
+    /// Contains some helper functions
+    /// </summary>
     public static partial class AppPrelude
     {
         /// <summary>
@@ -74,7 +77,7 @@ namespace Psns.Common.Clients.Broker
         /// Gets a message from a Service Broker Queue.
         /// </summary>
         /// <returns></returns>
-        public static Func<Maybe<Log>, Func<IDbConnection>, string, Try<BrokerMessage>> GetMessageFactory() =>
+        public static Func<Maybe<Log>, Func<IDbConnection>, string, Either<Exception, BrokerMessage>> GetMessageFactory() =>
             (log, connectionFactory, queueName) =>
                 CommandFactory<BrokerMessage>()(
                     log,
@@ -101,7 +104,7 @@ namespace Psns.Common.Clients.Broker
         /// End a Service Broker dialog.
         /// </summary>
         /// <returns></returns>
-        public static Func<Maybe<Log>, Func<IDbConnection>, Guid, Try<UnitValue>> EndDialogFactory() =>
+        public static Func<Maybe<Log>, Func<IDbConnection>, Guid, Either<Exception, UnitValue>> EndDialogFactory() =>
             (log, connectionFactory, conversationId) =>
                 CommandFactory<UnitValue>()(
                     log,
@@ -119,7 +122,7 @@ namespace Psns.Common.Clients.Broker
             string,
             string,
             string,
-            Try<Guid>> BeginConversationFactory() =>
+            Either<Exception, Guid>> BeginConversationFactory() =>
             (log, connectionFactory, fromService, toService, contract) =>
                 CommandFactory<Guid>()(
                     log,
@@ -133,7 +136,7 @@ namespace Psns.Common.Clients.Broker
         /// Send a <see cref="BrokerMessage"/>.
         /// </summary>
         /// <returns></returns>
-        public static Func<Maybe<Log>, Func<IDbConnection>, BrokerMessage, Try<UnitValue>> SendFactory() =>
+        public static Func<Maybe<Log>, Func<IDbConnection>, BrokerMessage, Either<Exception, UnitValue>> SendFactory() =>
             (log, connectionFactory, message) =>
                 CommandFactory<UnitValue>()(
                     log,
@@ -198,35 +201,25 @@ namespace Psns.Common.Clients.Broker
             EndDialog,
             IEnumerable<IBrokerObserver>,
             BrokerMessage,
-            Try<UnitValue>> ProcessMessageFactory() =>
+            Either<Exception, UnitValue>> ProcessMessageFactory() =>
             (logger, scheduler, cancelToken, endDialog, observers, message) =>
                 Match(
                     message == BrokerMessage.Empty,
                     NotEqual(true, _ =>
                         logger.Debug(
-                            endDialog(message.Conversation).Bind(__ =>
-                            {
-                                var result = UnitValue.Default;
-
-                                switch (message.MessageType)
-                                {
-                                    case ServiceBrokerErrorMessageType:
-                                        result = logger.Debug(observers, "Calling Observers OnError")
-                                            .Concurrently(obs => obs.SendError(new Exception(message.Message), message, logger), cancelToken, scheduler);
-                                        break;
-                                    case ServiceBrokerEndDialogMessageType:
-                                        result = logger.Debug(Unit, "Received EndDialog message");
-                                        break;
-                                    default:
-                                        result = logger.Debug(observers, "Calling Observers OnNext")
-                                            .Concurrently(obs => obs.SendNext(message, logger), cancelToken, scheduler);
-                                        break;
-                                }
-
-                                return result;
-                            }),
+                            endDialog(message.Conversation).Append(Match(message.MessageType,
+                                AsEqual(ServiceBrokerErrorMessageType, __ =>
+                                    logger
+                                        .Debug(observers, "Calling Observers OnError")
+                                        .Concurrently(obs => obs.SendError(new Exception(message.Message), message, logger), cancelToken, scheduler)),
+                                AsEqual(ServiceBrokerEndDialogMessageType, __ =>
+                                    logger.Debug(Unit, "Received EndDialog message")),
+                                __ =>
+                                    logger
+                                        .Debug(observers, "Calling Observers OnNext")
+                                        .Concurrently(obs => obs.SendNext(message, logger), cancelToken, scheduler))),
                             "Ending Dialog")),
-                    _ => Try(() => Unit));
+                    _ => Unit.Ok());
 
         /// <summary>
         /// Adds error handling to IObserver.OnNext

@@ -10,6 +10,10 @@
     <projectUrl>https://github.com/PSNS-IMF/clients-broker</projectUrl>
     <licenseUrl>https://github.com/PSNS-IMF/clients-broker/blob/master/LICENSE.md</licenseUrl>
     <releaseNotes>
+      ## 2.0.0.8
+      ### Features
+      * Returning Try's can easily result in unexpected behaviour since they are lazily evaluated; so returning Either's instead.
+
       ## 2.0.0.7
       ### Bug fixes
       * Fixed issue with async methods not being executed
@@ -53,7 +57,8 @@
         <dependency id="NETStandard.Library" version="2.0.2" exclude="Build,Analyzers" />
       </group>
       <group>
-        <dependency id="Psns.Common.SystemExtensions" version="2018.5.16.1" exclude="Build,Analyzers" />
+        <dependency id="Psns.Common.Functional" Version="2018.6.15.1" exclude="Build,Analyzers" />
+        <dependency id="Psns.Common.SystemExtensions" version="2018.6.11.1" exclude="Build,Analyzers" />
         <dependency id="System.Collections.Immutable" version="1.4.0" exclude="Build,Analyzers" />
         <dependency id="System.Diagnostics.Contracts" version="4.3.0" exclude="Build,Analyzers" />
         <dependency id="Newtonsoft.Json" version="11.0.2" exclude="Build,Analyzers" />

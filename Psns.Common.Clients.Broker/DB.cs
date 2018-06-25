@@ -54,7 +54,7 @@ namespace Psns.Common.Clients.Broker
             Func<IDbConnection>,
             Func<IDbCommand, IDbCommand>,
             Func<IDbCommand, T>,
-            Try<T>> CommandFactory<T>() =>
+            Either<Exception, T>> CommandFactory<T>() =>
             (log, connectionFactory, setupCommand, withCommand) =>
             {
                 var commitTransaction = fun((Func<IDbTransaction, Try<T>> func, IDbTransaction transaction) =>
@@ -70,7 +70,7 @@ namespace Psns.Common.Clients.Broker
                     .Par(openConnection.Par(beginTransaction))
                     .Compose(() => fun(() => connectionFactory()));
 
-                return connect();
+                return connect().ToEither();
             };
 
         /// <summary>
