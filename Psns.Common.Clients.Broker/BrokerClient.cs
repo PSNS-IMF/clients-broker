@@ -400,11 +400,7 @@ namespace Psns.Common.Clients.Broker
 
             Task removed;
             if (_workers.TryDequeue(out removed))
-            {
-                Try(() => removed.Wait()).Match(
-                    _ => _logger.Debug($"Successfully released 1 completed worker of {_workers.Count + 1}"),
-                    ex => _logger.Error(ex.GetExceptionChainMessagesWithSql()));
-            }
+                _logger.Debug($"Successfully released 1 completed worker of {_workers.Count + 1}");
             else
                 _logger.Error($"Unable to release completed worker");
         }
