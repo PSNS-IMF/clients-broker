@@ -394,13 +394,13 @@ namespace Psns.Common.Clients.Broker
 
         void TaskContinuation(Task task)
         {
-            _logger.Debug($"Task finished with Status: {task.Status}");
+            _logger.Debug($"Task finished with Status: {task.Status}", Constants.PollingCategory);
 
             Possible(task.Exception).IfSome(ex => _logger.Error(ex));
 
             Task removed;
             if (_workers.TryDequeue(out removed))
-                _logger.Debug($"Successfully released 1 completed worker of {_workers.Count + 1}");
+                _logger.Debug($"Successfully released 1 completed worker of {_workers.Count + 1}", Constants.PollingCategory);
             else
                 _logger.Error($"Unable to release completed worker");
         }

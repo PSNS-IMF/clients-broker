@@ -10,6 +10,10 @@
     <projectUrl>https://github.com/PSNS-IMF/clients-broker</projectUrl>
     <licenseUrl>https://github.com/PSNS-IMF/clients-broker/blob/master/LICENSE.md</licenseUrl>
     <releaseNotes>
+      ## 2.0.0.10
+      ### Features
+      * Separating Polling log messages so that debug log files can be better managed.
+
       ## 2.0.0.9
       ### Bug fixes
       * A TaskContinuation can't wait on the Task

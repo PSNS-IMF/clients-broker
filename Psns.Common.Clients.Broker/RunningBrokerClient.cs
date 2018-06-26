@@ -62,7 +62,7 @@ namespace Psns.Common.Clients.Broker
 
             return new StopReceivingResult(Try(() => tokenSource.Cancel()))
                 .Append(Try(() => Task.WaitAll(workers.ToArray(), tokenSource.Token)))
-                .Append(Try(() => _logger.Debug<UnitValue>("Receiver stopped")))
+                .Append(Try(() => _logger.Debug(message: "Receiver stopped")))
                 .Append(Try(() => tokenSource.Dispose()))
                 .Append(
                     _logger.Debug(observers, "Calling Observers OnCompleted").Aggregate(
