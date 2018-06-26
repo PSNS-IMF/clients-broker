@@ -229,7 +229,9 @@ namespace Psns.Common.Clients.Broker
         /// <param name="logger"></param>
         /// <returns></returns>
         public static UnitValue SendNext(this IBrokerObserver self, BrokerMessage next, Maybe<Log> logger) =>
-            Try(() => self.OnNext(next)).Match(_ => _, e => self.SendError(e, next, logger));
+            Try(() => self.OnNext(next)).Match(
+                _ => _, 
+                e => self.SendError(logger.Debug(e, $"{nameof(self.OnNext)} failed. Calling {nameof(self.OnError)}"), next, logger));
 
         /// <summary>
         /// Adds error handling to IObserver.OnError
@@ -242,7 +244,10 @@ namespace Psns.Common.Clients.Broker
         public static UnitValue SendError(this IBrokerObserver self, Exception exception, Maybe<BrokerMessage> message, Maybe<Log> logger) =>
             Try(() => self.OnError(exception, message))
                 .Match(_ => _, 
-                    e => logger.Error<UnitValue>(new AggregateException(exception, e).GetExceptionChainMessagesWithSql()));
+                    e => logger.Error<UnitValue>(
+                        new AggregateException(
+                            exception,
+                            logger.Debug(e, $"{nameof(self.OnNext)} failed. Calling {nameof(self.OnError)}")).GetExceptionChainMessagesWithSql()));
 
         static UnitValue Concurrently<T>(this IEnumerable<T> self, Action<T> action, CancellationToken token, TaskScheduler scheduler) =>
             Unit.Tap(_ => Task.WaitAll(
