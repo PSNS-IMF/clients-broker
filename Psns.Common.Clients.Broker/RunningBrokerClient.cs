@@ -68,7 +68,7 @@ namespace Psns.Common.Clients.Broker
                     _logger.Debug(observers, "Calling Observers OnCompleted").Aggregate(
                         new StopReceivingResult(),
                         (prev, next) =>
-                            prev.Append(new StopReceivingResult(Try(() => next.OnCompleted()).Try()))))
+                            prev.Append(Try(() => next.OnCompleted()).Try())))
                 .Append(
                     new StopReceivingResult(Try(() =>
                     {

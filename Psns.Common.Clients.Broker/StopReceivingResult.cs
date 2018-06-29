@@ -12,19 +12,23 @@ namespace Psns.Common.Clients.Broker
     /// </summary>
     public struct StopReceivingResult
     {
-        readonly ImmutableList<Exception> _exceptions;
+        readonly Maybe<ImmutableList<Exception>> _exceptions;
 
         /// <summary>
         /// If any Exceptions occurred.
         /// </summary>
-        public bool Failed => _exceptions?.Count > 0 
-            && _exceptions.Any(e => !IsCancellation(e));
+        public bool Failed =>
+            _exceptions.Match(
+                exs => exs.Count > 0 && exs.Any(e => !IsCancellation(e)),
+                () => false);
 
         /// <summary>
         /// Contains all Exceptions captured.
         /// </summary>
         public AggregateException Exceptions =>
-            new AggregateException(_exceptions.Where(e => !IsCancellation(e)));
+            _exceptions.Match(
+                exs => new AggregateException(exs.Where(e => !IsCancellation(e))),
+                () => new AggregateException());
 
         public StopReceivingResult(Either<Exception, UnitValue> attempt)
         {
@@ -39,11 +43,13 @@ namespace Psns.Common.Clients.Broker
         }
 
         public StopReceivingResult Append(StopReceivingResult result) =>
-            Map((_exceptions ?? ImmutableList.Create<Exception>()), exceptions =>
-                new StopReceivingResult(Possible(result._exceptions)
-                    .Match(
-                        some: rExceptions => exceptions.AddRange(rExceptions),
-                        none: () => exceptions)));
+            _exceptions.Match(exceptions =>
+                new StopReceivingResult(
+                    result._exceptions
+                        .Match(
+                            some: rExceptions => exceptions.AddRange(rExceptions),
+                            none: () => exceptions)),
+                () => new StopReceivingResult());
 
         static bool IsCancellation(Exception exception) =>
             Map(
