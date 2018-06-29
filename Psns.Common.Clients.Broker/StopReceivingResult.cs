@@ -26,7 +26,7 @@ namespace Psns.Common.Clients.Broker
         public AggregateException Exceptions =>
             new AggregateException(_exceptions.Where(e => !IsCancellation(e)));
 
-        public StopReceivingResult(Try<UnitValue> attempt)
+        public StopReceivingResult(Either<Exception, UnitValue> attempt)
         {
             _exceptions = attempt.Match(
                 _ => ImmutableList.Create<Exception>(),
@@ -57,7 +57,7 @@ namespace Psns.Common.Clients.Broker
 
     public static partial class AppPrelude
     {
-        public static StopReceivingResult Append(this StopReceivingResult self, Try<UnitValue> next) =>
+        public static StopReceivingResult Append(this StopReceivingResult self, Either<Exception, UnitValue> next) =>
             self.Append(new StopReceivingResult(next));
     }
 }

@@ -213,13 +213,13 @@ namespace Psns.Common.Clients.Broker
                                         .Debug(observers, "Calling Observers OnError")
                                         .Concurrently(obs => obs.SendError(new Exception(message.Message), message, logger), cancelToken, scheduler)),
                                 AsEqual(ServiceBrokerEndDialogMessageType, __ =>
-                                    logger.Debug(Unit, "Received EndDialog message")),
+                                    logger.Debug(Unit, "Received EndDialog message").Ok()),
                                 __ =>
                                     logger
                                         .Debug(observers, "Calling Observers OnNext")
                                         .Concurrently(obs => obs.SendNext(message, logger), cancelToken, scheduler))),
                             "Ending Dialog")),
-                    _ => Unit.Ok());
+                    _ => Some(Unit.Ok()));
 
         /// <summary>
         /// Adds error handling to IObserver.OnNext
@@ -249,8 +249,8 @@ namespace Psns.Common.Clients.Broker
                             exception,
                             logger.Debug(e, $"{nameof(self.OnNext)} failed. Calling {nameof(self.OnError)}")).GetExceptionChainMessagesWithSql()));
 
-        static UnitValue Concurrently<T>(this IEnumerable<T> self, Action<T> action, CancellationToken token, TaskScheduler scheduler) =>
-            Unit.Tap(_ => Task.WaitAll(
+        static Either<Exception, UnitValue> Concurrently<T>(this IEnumerable<T> self, Action<T> action, CancellationToken token, TaskScheduler scheduler) =>
+            Try(() => Task.WaitAll(
                 self.Aggregate(
                     Empty<Task>(),
                     (state, next) => 
@@ -260,6 +260,7 @@ namespace Psns.Common.Clients.Broker
                             TaskCreationOptions.None,
                             scheduler)
                         .Cons(state))
-                .ToArray()));
+                .ToArray()))
+                .Try();
     }
 }

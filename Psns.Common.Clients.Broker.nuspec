@@ -10,6 +10,10 @@
     <projectUrl>https://github.com/PSNS-IMF/clients-broker</projectUrl>
     <licenseUrl>https://github.com/PSNS-IMF/clients-broker/blob/master/LICENSE.md</licenseUrl>
     <releaseNotes>
+      ## 2.0.0.12
+      ### Features
+      * Making sure that async Exceptions are handled and Client.OnCompleted is called on Stop.
+      
       ## 2.0.0.11
       ### Features
       * Add more debug logging

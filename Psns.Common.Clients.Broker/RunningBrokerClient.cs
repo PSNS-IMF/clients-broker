@@ -60,22 +60,22 @@ namespace Psns.Common.Clients.Broker
             var workers = _workers | new ConcurrentBag<Task>();
             var observers = _observers | new ConcurrentBag<IBrokerObserver>();
 
-            return new StopReceivingResult(Try(() => tokenSource.Cancel()))
-                .Append(Try(() => Task.WaitAll(workers.ToArray(), tokenSource.Token)))
-                .Append(Try(() => _logger.Debug(message: "Receiver stopped")))
-                .Append(Try(() => tokenSource.Dispose()))
+            return new StopReceivingResult(Try(() => tokenSource.Cancel()).Try())
+                .Append(Try(() => Task.WaitAll(workers.ToArray(), tokenSource.Token)).Try())
+                .Append(Try(() => _logger.Debug(message: "Receiver stopped")).Try())
+                .Append(Try(() => tokenSource.Dispose()).Try())
                 .Append(
                     _logger.Debug(observers, "Calling Observers OnCompleted").Aggregate(
                         new StopReceivingResult(),
                         (prev, next) =>
-                            prev.Append(new StopReceivingResult(Try(() => next.OnCompleted())))))
+                            prev.Append(new StopReceivingResult(Try(() => next.OnCompleted()).Try()))))
                 .Append(
                     new StopReceivingResult(Try(() =>
                     {
                         IBrokerObserver removing;
                         while (observers.TryTake(out removing)) { };
                         _logger.Debug("All Observers Removed");
-                    })));
+                    }).Try()));
         }
     }
 }
