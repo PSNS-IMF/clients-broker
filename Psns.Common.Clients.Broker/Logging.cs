@@ -10,8 +10,8 @@ namespace Psns.Common.Clients.Broker
         public static T Debug<T>(this Maybe<Log> self, T t) =>
             self.Log(t, TraceEventType.Verbose);
 
-        public static UnitValue Debug(this Maybe<Log> self, string message, string category = GeneralLogCategory) =>
-            self.Log<UnitValue>(message, TraceEventType.Verbose, category);
+        public static Unit Debug(this Maybe<Log> self, string message, string category = GeneralLogCategory) =>
+            self.Log<Unit>(message, TraceEventType.Verbose, category);
 
         public static T Debug<T>(this Maybe<Log> self, T t, string message) =>
             t.Tap(_ => self.Log<T>(message, TraceEventType.Verbose));

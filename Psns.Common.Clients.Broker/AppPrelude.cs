@@ -33,26 +33,26 @@ namespace Psns.Common.Clients.Broker
     /// </summary>
     /// <param name="conversationId"></param>
     /// <returns></returns>
-    public delegate TryAsync<UnitValue> EndDialogAsync(Guid conversationId);
+    public delegate TryAsync<Unit> EndDialogAsync(Guid conversationId);
 
     /// <summary>
     /// A function that ends a Service Broker Conversation.
     /// </summary>
     /// <param name="conversationId"></param>
     /// <returns></returns>
-    public delegate Either<Exception, UnitValue> EndDialog(Guid conversationId);
+    public delegate Either<Exception, Unit> EndDialog(Guid conversationId);
 
     /// <summary>
     /// Creates a function that evaluates and processes BrokerMessages.
     /// </summary>
     /// <returns></returns>
-    public delegate TryAsync<UnitValue> ProcessMessageAsync(BrokerMessage message);
+    public delegate TryAsync<Unit> ProcessMessageAsync(BrokerMessage message);
 
     /// <summary>
     /// Creates a function that evaluates and processes BrokerMessages.
     /// </summary>
     /// <returns></returns>
-    public delegate Either<Exception, UnitValue> ProcessMessage(BrokerMessage message);
+    public delegate Either<Exception, Unit> ProcessMessage(BrokerMessage message);
     #endregion
 
     /// <summary>
@@ -91,26 +91,26 @@ namespace Psns.Common.Clients.Broker
         /// End a Service Broker dialog.
         /// </summary>
         /// <returns></returns>
-        public static Func<Maybe<Log>, Func<IDbConnection>, OpenAsync, ExecuteNonQueryAsync, Guid, TryAsync<UnitValue>> EndDialogAsyncFactory() =>
+        public static Func<Maybe<Log>, Func<IDbConnection>, OpenAsync, ExecuteNonQueryAsync, Guid, TryAsync<Unit>> EndDialogAsyncFactory() =>
             (log, connectionFactory, openAsync, exeAsync, conversationId) =>
-                CommandFactoryAsync<UnitValue>()(
+                CommandFactoryAsync<Unit>()(
                     log,
                     connectionFactory,
                     openAsync,
                     SetupEndDialog().Par(log, conversationId.AssertValue()),
-                    async cmd => { await exeAsync(cmd); return Unit; });
+                    async cmd => { await exeAsync(cmd); return unit; });
 
         /// <summary>
         /// End a Service Broker dialog.
         /// </summary>
         /// <returns></returns>
-        public static Func<Maybe<Log>, Func<IDbConnection>, Guid, Either<Exception, UnitValue>> EndDialogFactory() =>
+        public static Func<Maybe<Log>, Func<IDbConnection>, Guid, Either<Exception, Unit>> EndDialogFactory() =>
             (log, connectionFactory, conversationId) =>
-                CommandFactory<UnitValue>()(
+                CommandFactory<Unit>()(
                     log,
                     connectionFactory,
                     SetupEndDialog().Par(log, conversationId.AssertValue()),
-                    cmd => Unit.Tap(_ => cmd.ExecuteNonQuery()));
+                    cmd => unit.Tap(_ => cmd.ExecuteNonQuery()));
 
         /// <summary>
         /// Begin a Service Broker Conversation.
@@ -136,13 +136,13 @@ namespace Psns.Common.Clients.Broker
         /// Send a <see cref="BrokerMessage"/>.
         /// </summary>
         /// <returns></returns>
-        public static Func<Maybe<Log>, Func<IDbConnection>, BrokerMessage, Either<Exception, UnitValue>> SendFactory() =>
+        public static Func<Maybe<Log>, Func<IDbConnection>, BrokerMessage, Either<Exception, Unit>> SendFactory() =>
             (log, connectionFactory, message) =>
-                CommandFactory<UnitValue>()(
+                CommandFactory<Unit>()(
                     log,
                     connectionFactory,
                     SetupSend().Par(log, message.AssertValue()),
-                    cmd => Unit.Tap(_ => cmd.ExecuteNonQuery()));
+                    cmd => unit.Tap(_ => cmd.ExecuteNonQuery()));
 
         /// <summary>
         /// When message type is Service Broker Error, calls Observer.OnError
@@ -157,7 +157,7 @@ namespace Psns.Common.Clients.Broker
             EndDialogAsync,
             IEnumerable<IBrokerObserver>,
             BrokerMessage,
-            TryAsync<UnitValue>> ProcessMessageAsyncFactory() =>
+            TryAsync<Unit>> ProcessMessageAsyncFactory() =>
             (logger, scheduler, cancelToken, endDialog, observers, message) =>
                 Match(
                     message == BrokerMessage.Empty,
@@ -165,7 +165,7 @@ namespace Psns.Common.Clients.Broker
                         logger.Debug(
                             endDialog(message.Conversation).Bind(async u =>
                                 {
-                                    var result = UnitValue.Default.AsTask();
+                                    var result = Unit.Default.AsTask();
 
                                     switch (message.MessageType)
                                     {
@@ -175,7 +175,7 @@ namespace Psns.Common.Clients.Broker
                                                     obs.SendError(new Exception(message.Message), message, logger), cancelToken, scheduler);
                                             break;
                                         case ServiceBrokerEndDialogMessageType:
-                                            result = logger.Debug(Unit, "Received EndDialog message").AsTask();
+                                            result = logger.Debug(unit, "Received EndDialog message").AsTask();
                                             break;
                                         default:
                                             result = logger.Debug(observers, "Calling Observers OnNext")
@@ -186,7 +186,7 @@ namespace Psns.Common.Clients.Broker
                                     return await result;
                                 }),
                             "Ending Dialog")),
-                    _ => TryAsync(() => Unit.AsTask()));
+                    _ => TryAsync(() => unit.AsTask()));
 
         /// <summary>
         /// When message type is Service Broker Error, calls Observer.OnError
@@ -201,7 +201,7 @@ namespace Psns.Common.Clients.Broker
             EndDialog,
             IEnumerable<IBrokerObserver>,
             BrokerMessage,
-            Either<Exception, UnitValue>> ProcessMessageFactory() =>
+            Either<Exception, Unit>> ProcessMessageFactory() =>
             (logger, scheduler, cancelToken, endDialog, observers, message) =>
                 Match(
                     message == BrokerMessage.Empty,
@@ -213,13 +213,13 @@ namespace Psns.Common.Clients.Broker
                                         .Debug(observers, "Calling Observers OnError")
                                         .Concurrently(obs => obs.SendError(new Exception(message.Message), message, logger), cancelToken, scheduler)),
                                 AsEqual(ServiceBrokerEndDialogMessageType, __ =>
-                                    logger.Debug(Unit, "Received EndDialog message").Ok()),
+                                    logger.Debug(unit, "Received EndDialog message").Ok()),
                                 __ =>
                                     logger
                                         .Debug(observers, "Calling Observers OnNext")
                                         .Concurrently(obs => obs.SendNext(message, logger), cancelToken, scheduler))),
                             "Ending Dialog")),
-                    _ => Some(Unit.Ok()));
+                    _ => Some(unit.Ok()));
 
         /// <summary>
         /// Adds error handling to IObserver.OnNext
@@ -228,7 +228,7 @@ namespace Psns.Common.Clients.Broker
         /// <param name="next"></param>
         /// <param name="logger"></param>
         /// <returns></returns>
-        public static UnitValue SendNext(this IBrokerObserver self, BrokerMessage next, Maybe<Log> logger) =>
+        public static Unit SendNext(this IBrokerObserver self, BrokerMessage next, Maybe<Log> logger) =>
             Try(() => self.OnNext(next)).Match(
                 _ => _, 
                 e => self.SendError(logger.Debug(e, $"{nameof(self.OnNext)} failed. Calling {nameof(self.OnError)}"), next, logger));
@@ -241,15 +241,15 @@ namespace Psns.Common.Clients.Broker
         /// <param name="message"></param>
         /// <param name="logger"></param>
         /// <returns></returns>
-        public static UnitValue SendError(this IBrokerObserver self, Exception exception, Maybe<BrokerMessage> message, Maybe<Log> logger) =>
+        public static Unit SendError(this IBrokerObserver self, Exception exception, Maybe<BrokerMessage> message, Maybe<Log> logger) =>
             Try(() => self.OnError(exception, message))
                 .Match(_ => _, 
-                    e => logger.Error<UnitValue>(
+                    e => logger.Error<Unit>(
                         new AggregateException(
                             exception,
                             logger.Debug(e, $"{nameof(self.OnNext)} failed. Calling {nameof(self.OnError)}")).GetExceptionChainMessagesWithSql()));
 
-        static Either<Exception, UnitValue> Concurrently<T>(this IEnumerable<T> self, Action<T> action, CancellationToken token, TaskScheduler scheduler) =>
+        static Either<Exception, Unit> Concurrently<T>(this IEnumerable<T> self, Action<T> action, CancellationToken token, TaskScheduler scheduler) =>
             Try(() => Task.WaitAll(
                 self.Aggregate(
                     Empty<Task>(),

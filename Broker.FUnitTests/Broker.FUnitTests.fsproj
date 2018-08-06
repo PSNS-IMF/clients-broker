@@ -83,13 +83,13 @@
       <HintPath>..\packages\NUnit.3.9.0\lib\net45\nunit.framework.dll</HintPath>
     </Reference>
     <Reference Include="Psns.Common.Analysis">
-      <HintPath>..\packages\Psns.Common.Analysis.2018.5.21.1\lib\net46\Psns.Common.Analysis.dll</HintPath>
+      <HintPath>..\packages\Psns.Common.Analysis.2018.8.6.1\lib\net46\Psns.Common.Analysis.dll</HintPath>
     </Reference>
     <Reference Include="Psns.Common.Functional">
-      <HintPath>..\packages\Psns.Common.Functional.2018.6.15.1\lib\netstandard1.0\Psns.Common.Functional.dll</HintPath>
+      <HintPath>..\packages\Psns.Common.Functional.2018.8.6.1\lib\netstandard1.0\Psns.Common.Functional.dll</HintPath>
     </Reference>
     <Reference Include="Psns.Common.SystemExtensions">
-      <HintPath>..\packages\Psns.Common.SystemExtensions.2018.6.11.1\lib\net46\Psns.Common.SystemExtensions.dll</HintPath>
+      <HintPath>..\packages\Psns.Common.SystemExtensions.2018.8.6.1\lib\net46\Psns.Common.SystemExtensions.dll</HintPath>
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.AppContext">
@@ -157,8 +157,7 @@
       <Private>True</Private>
     </Reference>
     <Reference Include="System.ValueTuple">
-      <HintPath>..\packages\System.ValueTuple.4.4.0\lib\netstandard1.0\System.ValueTuple.dll</HintPath>
-      <Private>True</Private>
+      <HintPath>..\packages\System.ValueTuple.4.5.0\lib\netstandard1.0\System.ValueTuple.dll</HintPath>
     </Reference>
     <Reference Include="System.Xml" />
     <Reference Include="System.Xml.Linq" />

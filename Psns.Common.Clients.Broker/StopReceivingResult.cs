@@ -30,7 +30,7 @@ namespace Psns.Common.Clients.Broker
                 exs => new AggregateException(exs.Where(e => !IsCancellation(e))),
                 () => new AggregateException());
 
-        public StopReceivingResult(Either<Exception, UnitValue> attempt)
+        public StopReceivingResult(Either<Exception, Unit> attempt)
         {
             _exceptions = attempt.Match(
                 _ => ImmutableList.Create<Exception>(),
@@ -43,16 +43,17 @@ namespace Psns.Common.Clients.Broker
         }
 
         public StopReceivingResult Append(StopReceivingResult result) =>
-            _exceptions.Match(exceptions =>
-                new StopReceivingResult(
-                    result._exceptions
-                        .Match(
-                            some: rExceptions => exceptions.AddRange(rExceptions),
-                            none: () => exceptions)),
-                () => new StopReceivingResult());
+            _exceptions.Match(
+                some: exceptions =>
+                    new StopReceivingResult(
+                        result._exceptions
+                            .Match(
+                                some: rExceptions => exceptions.AddRange(rExceptions),
+                                none: () => exceptions)),
+                none: () => result);
 
         static bool IsCancellation(Exception exception) =>
-            Map(
+            map(
                 Cons(typeof(TaskCanceledException), typeof(OperationCanceledException)),
                 types => types.Contains(exception.GetType()) || HasCancellation(exception));
 
@@ -63,7 +64,7 @@ namespace Psns.Common.Clients.Broker
 
     public static partial class AppPrelude
     {
-        public static StopReceivingResult Append(this StopReceivingResult self, Either<Exception, UnitValue> next) =>
+        public static StopReceivingResult Append(this StopReceivingResult self, Either<Exception, Unit> next) =>
             self.Append(new StopReceivingResult(next));
     }
 }

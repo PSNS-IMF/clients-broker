@@ -17,7 +17,7 @@ let doTry (t: Either<exn, 'a>) = t.Match((fun x -> x), (fun ex -> failwith ex.Me
 
 let getLog () = ex.Some(new Log(fun _ -> fun _ -> fun _ -> ()))
 let scheduler = TaskScheduler.Current
-let getEndDialog calls = new EndDialog(fun _ -> incr calls; ex.Unit.Ok())
+let getEndDialog calls = new EndDialog(fun _ -> incr calls; ex.unit.Ok())
 let getObserver () = Mock<IBrokerObserver>().Create()
 let run endCalls observer = lib.ProcessMessageFactory().Par(getLog(), scheduler, CancellationToken.None, getEndDialog endCalls, [observer])
 
@@ -25,7 +25,7 @@ let run endCalls observer = lib.ProcessMessageFactory().Par(getLog(), scheduler,
 let ``it should return Unit if the Message is empty.`` () =
     let endCalls = ref 0
     let observer = getObserver()
-    (run endCalls observer).Invoke(BrokerMessage.Empty) |> doTry |> should equal ex.Unit
+    (run endCalls observer).Invoke(BrokerMessage.Empty) |> doTry |> should equal ex.unit
 
     !endCalls |> should equal 0
 
@@ -36,7 +36,7 @@ let ``it should return Unit if the Message is empty.`` () =
 let ``it should call endDialog if the Message is not empty.`` () =
     let endCalls = ref 0
     let observer = getObserver()
-    (run endCalls observer).Invoke(new BrokerMessage("contract", "type", "msg", Guid.Empty, Guid.Empty)) |> doTry |> should equal ex.Unit
+    (run endCalls observer).Invoke(new BrokerMessage("contract", "type", "msg", Guid.Empty, Guid.Empty)) |> doTry |> should equal ex.unit
 
     !endCalls |> should equal 1
 

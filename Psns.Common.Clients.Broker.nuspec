@@ -73,8 +73,8 @@
         <dependency id="NETStandard.Library" version="2.0.2" exclude="Build,Analyzers" />
       </group>
       <group>
-        <dependency id="Psns.Common.Functional" version="2018.6.15.1" exclude="Build,Analyzers" />
-        <dependency id="Psns.Common.SystemExtensions" version="2018.6.11.1" exclude="Build,Analyzers" />
+        <dependency id="Psns.Common.Functional" version="2018.8.6.1" exclude="Build,Analyzers" />
+        <dependency id="Psns.Common.SystemExtensions" version="2018.8.6.1" exclude="Build,Analyzers" />
         <dependency id="System.Collections.Immutable" version="1.4.0" exclude="Build,Analyzers" />
         <dependency id="System.Diagnostics.Contracts" version="4.3.0" exclude="Build,Analyzers" />
         <dependency id="Newtonsoft.Json" version="11.0.2" exclude="Build,Analyzers" />

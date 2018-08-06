@@ -66,7 +66,7 @@ namespace Psns.Common.Clients.Broker
         /// </summary>
         /// <param name="message">The <see cref="BrokerMessage"/> to send</param>
         /// <returns></returns>
-        Either<Exception, UnitValue> Send(BrokerMessage message);
+        Either<Exception, Unit> Send(BrokerMessage message);
     }
 
     /// <summary>
@@ -314,7 +314,7 @@ namespace Psns.Common.Clients.Broker
                             some: get => get(queueName).Match(
                                 right: msg => QueueForProcessing(msg, cancelToken, _scheduler),
                                 left: exception => ProcessException(exception, None, cancelToken, _scheduler)),
-                            none: () => Unit));
+                            none: () => unit));
                 }
 
                 _logger.Debug("Receiver cancelling");
@@ -345,7 +345,7 @@ namespace Psns.Common.Clients.Broker
         /// </summary>
         /// <param name="message"></param>
         /// <returns></returns>
-        public Either<Exception, UnitValue> Send(BrokerMessage message) =>
+        public Either<Exception, Unit> Send(BrokerMessage message) =>
             SendFactory()(_logger, _connectionFactory, message);
 
         /// <summary>
@@ -358,33 +358,33 @@ namespace Psns.Common.Clients.Broker
         /// <param name="token"></param>
         /// <param name="scheduler"></param>
         /// <returns></returns>
-        UnitValue QueueForProcessing(BrokerMessage message, CancellationToken token, TaskScheduler scheduler) =>
-            Unit.Tap(_ => _workers.Enqueue(
+        Unit QueueForProcessing(BrokerMessage message, CancellationToken token, TaskScheduler scheduler) =>
+            unit.Tap(_ => _workers.Enqueue(
                 Task.Factory.StartNew(() =>
                     IsAsync
                     ? _composeProcessMessageAsync.Match(
                         some: compose => 
-                                Map(compose(token, _observers), processMessage =>
+                                map(compose(token, _observers), processMessage =>
                                   processMessage(message)
                                       .Match(
-                                          success: __ => Unit,
+                                          success: __ => unit,
                                           fail: exception => ProcessException(exception, message, token, _scheduler)).Result),
-                        none: () => Unit)
+                        none: () => unit)
                     : _composeProcessMessage.Match(
                         some: compose =>
-                                Map(compose(token, _observers), processMessage =>
+                                map(compose(token, _observers), processMessage =>
                                     processMessage(message).Match(
-                                        right: __ => Unit,
+                                        right: __ => unit,
                                         left: exception => ProcessException(exception, message, token, _scheduler))),
-                        none: () => Unit),
+                        none: () => unit),
                         token, TaskCreationOptions.None, scheduler)
                 .ContinueWith(TaskContinuation, token)));
 
-        UnitValue ProcessException(Exception exception, Maybe<BrokerMessage> message, CancellationToken token, TaskScheduler scheduler) =>
-            Unit.Tap(_ => _workers.Enqueue(
+        Unit ProcessException(Exception exception, Maybe<BrokerMessage> message, CancellationToken token, TaskScheduler scheduler) =>
+            unit.Tap(_ => _workers.Enqueue(
             Task.Factory.StartNew(() =>
                 token.IsCancellationRequested
-                    ? Unit.Tap(__ => _logger.Error(exception.GetExceptionChainMessagesWithSql()))
+                    ? unit.Tap(__ => _logger.Error(exception.GetExceptionChainMessagesWithSql()))
                     : _observers.Iter(obs =>
                         obs.SendError(exception, message, _logger)),
                 token,
